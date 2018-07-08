@@ -3,6 +3,7 @@
         {
             "name": "Mac",
             "includePath": [
+                "/Users/rudelm/Library/Arduino15/packages/esp8266/hardware/esp8266/2.4.1/cores/esp8266",
                 "${workspaceFolder}/**"
             ],
             "defines": [],
@@ -13,7 +14,13 @@
             "compilerPath": "/usr/bin/clang",
             "cStandard": "c11",
             "cppStandard": "c++17",
-            "intelliSenseMode": "clang-x64"
+            "intelliSenseMode": "clang-x64",
+            "browse": {
+                "limitSymbolsToIncludedHeaders": false,
+                "path": [
+                    "/Users/rudelm/Library/Arduino15/packages/esp8266/hardware/esp8266/2.4.1/cores/esp8266"
+                ]
+            }
         },
         {
             "name": "Arduino",
@@ -29,7 +36,8 @@
                 "/Applications/Arduino.app/Contents/Java/hardware/tools/avr/avr/include/compat/",
                 "/Applications/Arduino.app/Contents/Java/hardware/tools/avr/avr/include/util/",
                 "/Applications/Arduino.app/Contents/Java/hardware/tools/avr/lib/gcc/avr/4.*.*/include/",
-                "/Applications/Arduino.app/Contents/Java/hardware/tools/avr/lib/gcc/avr/4.*.*/include-fixed/"
+                "/Applications/Arduino.app/Contents/Java/hardware/tools/avr/lib/gcc/avr/4.*.*/include-fixed/",
+                "/Users/rudelm/Documents/Arduino/libraries/Adafruit_ESP8266"
             ],
             "browse": {
                 "limitSymbolsToIncludedHeaders": true,
@@ -45,7 +53,8 @@
                     "/Applications/Arduino.app/Contents/Java/hardware/tools/avr/avr/include/compat/",
                     "/Applications/Arduino.app/Contents/Java/hardware/tools/avr/avr/include/util/",
                     "/Applications/Arduino.app/Contents/Java/hardware/tools/avr/lib/gcc/avr/4.*.*/include/",
-                    "/Applications/Arduino.app/Contents/Java/hardware/tools/avr/lib/gcc/avr/4.*.*/include-fixed/"
+                    "/Applications/Arduino.app/Contents/Java/hardware/tools/avr/lib/gcc/avr/4.*.*/include-fixed/",
+                    "/Users/rudelm/Documents/Arduino/libraries/Adafruit_ESP8266"
                 ]
             }
         }
