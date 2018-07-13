@@ -15,6 +15,8 @@
 #define DHTPIN 12                  // DHT connection on GPIO Pin 12 or D6 of NodeMCU LoLin V3
 #define DHTTYPE DHT22              // DHT 22
 
+DHT dht(DHTPIN, DHTTYPE);
+
 // define your default values here, if there are different values in config.json, they are overwritten.
 char influxdb_server[60];
 char influxdb_port[6] = "8086";
@@ -35,6 +37,8 @@ void saveConfigCallback () {
 void setup() {
   Serial.begin(115200);
   Serial.println();
+
+  dht.begin();
 
   //clean FS, for testing
   // SPIFFS.format();
@@ -169,6 +173,23 @@ void setup() {
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
+  float h = dht.readHumidity();
+  float t = dht.readTemperature();
 
+  if (isnan(h) || isnan(t)) {
+    Serial.println("Failed to read from DHT sensor!");
+    return;
+  }
+  float hic = dht.computeHeatIndex(t, h, false);
+  
+  String data = String(measurement) + " t=" + String(t) + ",h=" + String(h) + ",hic=" + String(hic);
+
+  Serial.println("Writing data to host " + String(influxdb_server) + ":" +
+                 String(influxdb_port) + "'s database=" + String(influxdb_db));
+  Serial.println(data);
+  //influxdb.write(data);
+  //Serial.println(influxdb.response() == DB_SUCCESS ? "HTTP write success"
+  //               : "Writing failed");
+
+  delay(30000);
 }
