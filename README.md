@@ -15,15 +15,25 @@ If you're using Mac OS High Sierra, you'll need [working](https://www.reddit.com
 # Pinout
 I'm using an ESP8266 NodeMCU Lolin v3. The DHTPIN points to 12, which is the GPIO Pin 12 and therefore the Pin D6:
 
-![ESP8266 NodeMCU Lolin v3 Pin Layout](./esp8266-nodemcu-dev-kit-v3-pins.jpg "ESP8266 NodeMCU Lolin v3 Pin Layout")
+![ESP8266 NodeMCU Lolin v3 Pin Layout](./images/esp8266-nodemcu-dev-kit-v3-pins.jpg "ESP8266 NodeMCU Lolin v3 Pin Layout")
 
 Image taken from https://github.com/opendata-stuttgart/meta/wiki/Pinouts-NodeMCU-v2,-v3
 
 You should also be able to use the Arduino Pin Definitions directly, so this would be D6 instead of 12.
 
 # Setup
-If you use the `ManagedWifiDhtInfluxDB` project, you'll get a new Wifi AP in your network list called `DHT22-Sensor`. You can connect to this Wifi with password `configureMe`. After entering these credentials, a Webpage will be shown to you. This is similar to the captive portals you might know from public hotpots. After you've entered all necessary information, the settings will be persisted and it will connect to the new Wifi as client. 
+If you use the `ManagedWifiDhtInfluxDB` project, you'll get a new Wifi AP in your network list called `DHT22-Sensor`. You can connect to this Wifi with password `configureMe`. After entering these credentials, a Webpage will be shown to you:
 
-If you don't connect to the AP, it will disconnect after 5 minutes. You need to restart reconnect to the Wifi for another configuration run.
+![DHT22-Sensor Welcomescreen](./images/DHT22-Sensor-Welcome.png "DHT22-Sensor Welcomescreen")
+
+This is similar to the captive portals you might know from public hotpots. Now enter all requested information:
+
+![DHT22-Sensor Configuration](./images/DHT22-Sensor-Configuration.png "DHT22-Sensor Configuration")
+
+After you've entered all necessary information, the settings will be persisted and it will connect to the new Wifi as client:
+
+![DHT22-Sensor Configuration saved](./images/DHT22-Sensor-Saved.png "DHT22-Sensor Configuration saved")
+
+If you don't complete the configuration in less than 5 minutes, the ESP will disconnect you. You need to reconnect to the Wifi for another configuration run.
 
 If you've ever used the ESP8266 for anything else, it might happen, that you still have a Wifi Configuration stored. In this case, comment out the wifiManager.resetSettings() method as well as the SPIFFS.format() method to clear the memory. After upload comment those methods back in and flash again.
