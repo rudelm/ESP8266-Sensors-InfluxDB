@@ -18,6 +18,7 @@ const uint16_t INFLUXDB_PORT = 8086;
 const char *DATABASE = "esp8266";
 const char *DB_USER = "SUPER_SECRET";
 const char *DB_PASSWORD = "SUPER_SECRET";
+const char *MEASUREMENT = "measurement";
 
 ESP8266WiFiMulti WiFiMulti;
 Influxdb influxdb(INFLUXDB_HOST, INFLUXDB_PORT);
@@ -45,7 +46,7 @@ void loop() {
         }
         float hic = dht.computeHeatIndex(t, h, false);
         
-        String data = "dht22 t=" + String(t) + ",h=" + String(h) + ",hic=" + String(hic);
+        String data = MEASUREMENT + " t=" + String(t) + ",h=" + String(h) + ",hic=" + String(hic);
   
         Serial.println("Writing data to host " + String(INFLUXDB_HOST) + ":" +
                        INFLUXDB_PORT + "'s database=" + DATABASE);
