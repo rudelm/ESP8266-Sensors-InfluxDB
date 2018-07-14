@@ -5,7 +5,7 @@ This is a collection of ESP8266 and DHT22 sketches I'm using in my home. While t
 - https://github.com/esp8266/Arduino
 - https://github.com/adafruit/DHT-sensor-library
 - https://github.com/adafruit/Adafruit_Sensor
-- https://github.com/hwwong/ESP_influxdb - I'm using a custom version attached to this git repo, will fork later
+- https://github.com/rudelm/ESP_influxdb/tree/fix-constructor - I needed an empty default constructor for this project
 - https://github.com/tzapu/WiFiManager
 - https://github.com/bblanchon/ArduinoJson
 - https://github.com/adafruit/Adafruit_SPIFlash
