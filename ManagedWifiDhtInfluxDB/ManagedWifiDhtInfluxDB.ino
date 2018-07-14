@@ -14,6 +14,7 @@
 
 #define DHTPIN 12                 // DHT connection on GPIO Pin 12 or D6 of NodeMCU LoLin V3
 #define DHTTYPE DHT22             // DHT 22
+#define DHT_READ_INTERVAL 60000   // Read temp info every 60s
 
 DHT dht(DHTPIN, DHTTYPE);
 Influxdb influxdb;
@@ -196,5 +197,5 @@ void loop() {
   Serial.println(influxdb.response() == DB_SUCCESS ? "HTTP write success"
                  : "Writing failed");
 
-  delay(30000);
+  delay(DHT_READ_INTERVAL);
 }

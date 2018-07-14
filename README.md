@@ -22,6 +22,10 @@ Image taken from https://github.com/opendata-stuttgart/meta/wiki/Pinouts-NodeMCU
 You should also be able to use the Arduino Pin Definitions directly, so this would be D6 instead of 12.
 
 # Setup
+## Configuration in code
+There are a few defaults you might want to touch depending on your needs (especially the ones for the default configuration in the browser). If you choose a DHT read interval of 30s, it will complain from time to time about unreadable values. I've set it to 60s as there shouldn't be that fast changes to the measurements.
+
+## Configuration in Browser
 If you use the `ManagedWifiDhtInfluxDB` project, you'll get a new Wifi AP in your network list called `DHT22-Sensor`. You can connect to this Wifi with password `configureMe`. After entering these credentials, a Webpage will be shown to you:
 
 ![DHT22-Sensor Welcomescreen](./images/DHT22-Sensor-Welcome.png "DHT22-Sensor Welcomescreen")
@@ -37,3 +41,4 @@ After you've entered all necessary information, the settings will be persisted a
 If you don't complete the configuration in less than 5 minutes, the ESP will disconnect you. You need to reconnect to the Wifi for another configuration run.
 
 If you've ever used the ESP8266 for anything else, it might happen, that you still have a Wifi Configuration stored. In this case, comment out the wifiManager.resetSettings() method as well as the SPIFFS.format() method to clear the memory. After upload comment those methods back in and flash again.
+
