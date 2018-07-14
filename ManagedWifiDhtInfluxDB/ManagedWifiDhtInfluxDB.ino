@@ -12,10 +12,11 @@
 #include <DHT_U.h>
 #include <ArduinoJson.h>          // https://github.com/bblanchon/ArduinoJson
 
-#define DHTPIN 12                  // DHT connection on GPIO Pin 12 or D6 of NodeMCU LoLin V3
-#define DHTTYPE DHT22              // DHT 22
+#define DHTPIN 12                 // DHT connection on GPIO Pin 12 or D6 of NodeMCU LoLin V3
+#define DHTTYPE DHT22             // DHT 22
 
 DHT dht(DHTPIN, DHTTYPE);
+Influxdb influxdb;
 
 // define your default values here, if there are different values in config.json, they are overwritten.
 char influxdb_server[60];
@@ -176,6 +177,10 @@ void loop() {
   float h = dht.readHumidity();
   float t = dht.readTemperature();
 
+  influxdb.setHost(influxdb_server);
+  influxdb.setPort(atoi(influxdb_port));
+  influxdb.opendb(String(influxdb_db), String(influxdb_user), String(influxdb_password));
+  
   if (isnan(h) || isnan(t)) {
     Serial.println("Failed to read from DHT sensor!");
     return;
@@ -187,9 +192,9 @@ void loop() {
   Serial.println("Writing data to host " + String(influxdb_server) + ":" +
                  String(influxdb_port) + "'s database=" + String(influxdb_db));
   Serial.println(data);
-  //influxdb.write(data);
-  //Serial.println(influxdb.response() == DB_SUCCESS ? "HTTP write success"
-  //               : "Writing failed");
+  influxdb.write(data);
+  Serial.println(influxdb.response() == DB_SUCCESS ? "HTTP write success"
+                 : "Writing failed");
 
   delay(30000);
 }
