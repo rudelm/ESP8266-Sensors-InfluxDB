@@ -38,7 +38,8 @@ After you've entered all necessary information, the settings will be persisted a
 
 ![DHT22-Sensor Configuration saved](./images/DHT22-Sensor-Saved.png "DHT22-Sensor Configuration saved")
 
+## Troubleshooting
 If you don't complete the configuration in less than 5 minutes, the ESP will disconnect you. You need to reconnect to the Wifi for another configuration run.
 
-If you've ever used the ESP8266 for anything else, it might happen, that you still have a Wifi Configuration stored. In this case, comment out the wifiManager.resetSettings() method as well as the SPIFFS.format() method to clear the memory. After upload comment those methods back in and flash again.
+If you've ever used the ESP8266 for anything else, it might happen, that you still have a Wifi Configuration stored. In this case, comment out the `#define RESET_DATA` definition to clear the memory. After upload comment this define back in and flash again. The data should now be wiped.
 

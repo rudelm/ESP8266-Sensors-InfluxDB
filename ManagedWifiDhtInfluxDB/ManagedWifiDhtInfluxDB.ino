@@ -16,6 +16,8 @@
 #define DHTTYPE DHT22             // DHT 22
 #define DHT_READ_INTERVAL 60000   // Read temp info every 60s
 
+//#define RESET_DATA              // comment this out to reset stored data and configuration
+
 DHT dht(DHTPIN, DHTTYPE);
 Influxdb influxdb;
 
@@ -26,6 +28,7 @@ char influxdb_db[30] = "default";
 char influxdb_user[30];
 char influxdb_password[30];
 char measurement[30] = "climate";
+char node[30];
 
 //flag for saving data
 bool shouldSaveConfig = false;
@@ -42,8 +45,10 @@ void setup() {
 
   dht.begin();
 
-  //clean FS, for testing
-  // SPIFFS.format();
+  #if defined(RESET_DATA)
+    // clean FS, for testing
+    SPIFFS.format();
+  #endif
 
   //read configuration from FS json
   Serial.println("mounting FS...");
@@ -73,6 +78,7 @@ void setup() {
           strcpy(influxdb_user, json["influxdb_user"]);
           strcpy(influxdb_password, json["influxdb_password"]);
           strcpy(measurement, json["measurement"]);
+          strcpy(node, json["node"]);
 
         } else {
           Serial.println("failed to load json config");
@@ -93,6 +99,7 @@ void setup() {
   WiFiManagerParameter custom_influxdb_user("user", "InfluxDB username", influxdb_user, 30);
   WiFiManagerParameter custom_influxdb_password("password", "InfluxDB userpassword", influxdb_password, 30);
   WiFiManagerParameter custom_measurement("measurement", "InfluxDB measurement", measurement, 30);
+  WiFiManagerParameter custom_node("node", "Node name for better identification", node, 30);
 
   // WiFiManager
   // Local intialization. Once its business is done, there is no need to keep it around
@@ -111,9 +118,12 @@ void setup() {
   wifiManager.addParameter(&custom_influxdb_user);
   wifiManager.addParameter(&custom_influxdb_password);
   wifiManager.addParameter(&custom_measurement);
+  wifiManager.addParameter(&custom_node);
 
-  // reset settings - for testing
-  // wifiManager.resetSettings();
+  #if defined(RESET_DATA)
+    // reset settings - for testing
+    wifiManager.resetSettings();
+  #endif
 
   // set minimu quality of signal so it ignores AP's under that quality
   // defaults to 8%
@@ -146,6 +156,7 @@ void setup() {
   strcpy(influxdb_user, custom_influxdb_user.getValue());
   strcpy(influxdb_password, custom_influxdb_password.getValue());
   strcpy(measurement, custom_measurement.getValue());
+  strcpy(node, custom_node.getValue());
 
   // save the custom parameters to FS
   if (shouldSaveConfig) {
@@ -158,6 +169,7 @@ void setup() {
     json["influxdb_user"] = influxdb_user;
     json["influxdb_password"] = influxdb_password;
     json["measurement"] = measurement;
+    json["node"] = node;
     
     File configFile = SPIFFS.open("/config.json", "w");
     if (!configFile) {
@@ -188,7 +200,7 @@ void loop() {
   }
   float hic = dht.computeHeatIndex(t, h, false);
   
-  String data = String(measurement) + " t=" + String(t) + ",h=" + String(h) + ",hic=" + String(hic);
+  String data = String(measurement) + ",node=" + String(node) + " t=" + String(t) + ",h=" + String(h) + ",hic=" + String(hic);
 
   Serial.println("Writing data to host " + String(influxdb_server) + ":" +
                  String(influxdb_port) + "'s database=" + String(influxdb_db));
