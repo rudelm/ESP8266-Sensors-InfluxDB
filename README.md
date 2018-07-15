@@ -1,5 +1,5 @@
 # ESP8266 and InfluxDB sketches
-This is a collection of ESP8266 and DHT22 sketches I'm using in my home. While the `DHTInfluxDB` project was from the forked repo, the `ManagedWifiDhtInfluxDB` project is a new development up from the ground.
+This is a collection of ESP8266 and DHT22 sketches I'm using in my home. 
 
 # Dependencies
 - https://github.com/esp8266/Arduino
