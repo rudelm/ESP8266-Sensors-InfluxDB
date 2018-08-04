@@ -9,6 +9,8 @@ This is a collection of ESP8266 and DHT22 sketches I'm using in my home.
 - https://github.com/tzapu/WiFiManager
 - https://github.com/bblanchon/ArduinoJson
 - https://github.com/adafruit/Adafruit_SPIFlash
+- https://github.com/ThingPulse/esp8266-oled-ssd1306
+
 
 If you're using Mac OS High Sierra, you'll need [working](https://www.reddit.com/r/arduino/comments/7cq68i/any_new_drivers_for_ch340g_on_mac_os_high_sierra/) USB Serial drivers for the CH340G chip.
 
@@ -20,6 +22,9 @@ I'm using an ESP8266 NodeMCU Lolin v3. The DHTPIN points to 12, which is the GPI
 Image taken from https://github.com/opendata-stuttgart/meta/wiki/Pinouts-NodeMCU-v2,-v3
 
 You should also be able to use the Arduino Pin Definitions directly, so this would be D6 instead of 12.
+
+
+I've attached a SSD1301 OLED Display to display the current measurements. SDA is on Pin D3, SDC is on Pin D4, VCC is on 3V and GND is on G.
 
 # Setup
 ## Configuration in code

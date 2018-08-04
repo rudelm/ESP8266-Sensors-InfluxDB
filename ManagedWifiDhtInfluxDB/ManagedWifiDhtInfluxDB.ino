@@ -12,6 +12,19 @@
 #include <DHT_U.h>
 #include <ArduinoJson.h>          // https://github.com/bblanchon/ArduinoJson
 
+// time
+#include <time.h>                 // time() ctime()
+#include <sys/time.h>             // struct timeval
+#include <coredecls.h>            // settimeofday_cb()
+
+
+#include "SSD1306Wire.h"          // OLED Display drivers for SSD1306 displays
+#include "OLEDDisplayUi.h"
+#include "Wire.h"
+#include "ManagedWifiDhtInfluxDBImages.h"
+#include "ManagedWifiDhtInfluxDBFonts.h"
+#include "ManagedWifiDhtInfluxDB.h"
+
 #define DHTPIN 12                 // DHT connection on GPIO Pin 12 or D6 of NodeMCU LoLin V3
 #define DHTTYPE DHT22             // DHT 22
 #define DHT_READ_INTERVAL 60000   // Read temp info every 60s
@@ -20,6 +33,46 @@
 
 DHT dht(DHTPIN, DHTTYPE);
 Influxdb influxdb;
+
+#define TZ              2         // (utc+) TZ in hours
+#define DST_MN          60        // use 60mn for summer time in some countries
+
+
+const boolean IS_METRIC = true;
+
+// Display Settings
+const int I2C_DISPLAY_ADDRESS = 0x3c;
+const int SDA_PIN = D3;
+const int SDC_PIN = D4;
+
+// Initialize the oled display for address 0x3c
+// sda-pin=D3 and sdc-pin=D4
+SSD1306Wire     display(I2C_DISPLAY_ADDRESS, SDA_PIN, SDC_PIN);
+OLEDDisplayUi   ui( &display );
+
+// Adjust according to your language
+const String WDAY_NAMES[] = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
+const String MONTH_NAMES[] = {"JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"};
+
+#define TZ_MN           ((TZ)*60)
+#define TZ_SEC          ((TZ)*3600)
+#define DST_SEC         ((DST_MN)*60)
+time_t now;
+
+//declaring prototypes
+void drawDateTime(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y);
+void drawCurrentTemperature(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y);
+void drawCurrentHumidity(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y);
+void drawHeaderOverlay(OLEDDisplay *display, OLEDDisplayUiState* state);
+
+// Add frames
+// this array keeps function pointers to all frames
+// frames are the single views that slide from right to left
+FrameCallback frames[] = { drawDateTime, drawCurrentTemperature, drawCurrentHumidity };
+int numberOfFrames = 3;
+
+OverlayCallback overlays[] = { drawHeaderOverlay };
+int numberOfOverlays = 1;
 
 // define your default values here, if there are different values in config.json, they are overwritten.
 char influxdb_server[60];
@@ -184,23 +237,85 @@ void setup() {
 
   Serial.println("local ip");
   Serial.println(WiFi.localIP());
+
+  /* let us set: timezone in sec, daylightOffset in sec, server_name1, server_name2, server_name3 */
+  configTime(TZ_SEC, DST_SEC, "time.nist.gov", "time.windows.com", "de.pool.ntp.org");
+  delay(2000);
+  now = time(nullptr);
+  timeval tv = { now, 0 };
+  settimeofday(&tv, nullptr);
+  setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0/3", 3);   // this sets TZ to Brussels/Paris/Vienna
+  tzset();
+  Serial.println("system time set in setup: ");
+  Serial.println(ctime(&now));
+
+
+  // initialize display
+  display.init();
+  display.clear();
+  display.display();
+
+  //display.flipScreenVertically();
+  display.setFont(ArialMT_Plain_10);
+  display.setTextAlignment(TEXT_ALIGN_CENTER);
+  display.setContrast(255);
+
+  ui.setTargetFPS(30);
+
+  ui.setActiveSymbol(activeSymbole);
+  ui.setInactiveSymbol(inactiveSymbole);
+
+  // You can change this to
+  // TOP, LEFT, BOTTOM, RIGHT
+  ui.setIndicatorPosition(BOTTOM);
+
+  // Defines where the first frame is located in the bar.
+  ui.setIndicatorDirection(LEFT_RIGHT);
+
+  // You can change the transition that is used
+  // SLIDE_LEFT, SLIDE_RIGHT, SLIDE_TOP, SLIDE_DOWN
+  ui.setFrameAnimation(SLIDE_LEFT);
+
+  ui.setFrames(frames, numberOfFrames);
+
+  ui.setOverlays(overlays, numberOfOverlays);
+
+  // Inital UI takes care of initalising the display too.
+  ui.init();
+
+  Serial.println("");
 }
 
 void loop() {
-  float h = dht.readHumidity();
-  float t = dht.readTemperature();
+  char strftime_buf[64];
+  now = time(nullptr);
+  Serial.println("system time in loop:");
+  Serial.println(ctime(&now));
+  
+  Serial.println(millis());
+  // simple localtime
+  Serial.print(ctime(&now));
+  //  formated localtime
+  strftime(strftime_buf, sizeof(strftime_buf), "%c", localtime(&now)); 
+  Serial.println(strftime_buf);
+  //  formated gmtime
+  strftime(strftime_buf, sizeof(strftime_buf), "%c", gmtime(&now));
+  Serial.println(strftime_buf);
+
+  
+  ClimateMeasurement sensorData = getClimateMeasurement();
 
   influxdb.setHost(influxdb_server);
   influxdb.setPort(atoi(influxdb_port));
   influxdb.opendb(String(influxdb_db), String(influxdb_user), String(influxdb_password));
   
-  if (isnan(h) || isnan(t)) {
+  if (isnan(sensorData.humidity) || isnan(sensorData.temperature)) {
     Serial.println("Failed to read from DHT sensor!");
     return;
   }
-  float hic = dht.computeHeatIndex(t, h, false);
   
-  String data = String(measurement) + ",node=" + String(node) + " t=" + String(t) + ",h=" + String(h) + ",hic=" + String(hic);
+  
+  String data = String(measurement) + ",node=" + String(node) + " t=" + String(sensorData.temperature) + ",h=" + String(sensorData.humidity) + ",hic=" + String(sensorData.heatIndex);
 
   Serial.println("Writing data to host " + String(influxdb_server) + ":" +
                  String(influxdb_port) + "'s database=" + String(influxdb_db));
@@ -210,4 +325,83 @@ void loop() {
                  : "Writing failed");
 
   delay(DHT_READ_INTERVAL);
+
+  // show something on the display
+  ui.update();
+}
+
+ClimateMeasurement getClimateMeasurement() {
+  float h = dht.readHumidity();
+  float t = dht.readTemperature();
+  float hic = dht.computeHeatIndex(t, h, false);
+
+  return {h, t, 0, hic};
+}
+
+
+void drawDateTime(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y) {
+  now = time(nullptr);
+  struct tm* timeInfo;
+  timeInfo = localtime(&now);
+  char buff[16];
+
+
+  display->setTextAlignment(TEXT_ALIGN_CENTER);
+  display->setFont(ArialMT_Plain_10);
+  String date = WDAY_NAMES[timeInfo->tm_wday];
+
+  sprintf_P(buff, PSTR("%s, %02d/%02d/%04d"), WDAY_NAMES[timeInfo->tm_wday].c_str(), timeInfo->tm_mday, timeInfo->tm_mon+1, timeInfo->tm_year + 1900);
+  display->drawString(64 + x, 5 + y, String(buff));
+  display->setFont(ArialMT_Plain_24);
+
+  sprintf_P(buff, PSTR("%02d:%02d:%02d"), timeInfo->tm_hour, timeInfo->tm_min, timeInfo->tm_sec);
+  display->drawString(64 + x, 15 + y, String(buff));
+  display->setTextAlignment(TEXT_ALIGN_LEFT);
+}
+
+void drawHeaderOverlay(OLEDDisplay *display, OLEDDisplayUiState* state) {
+  now = time(nullptr);
+  struct tm* timeInfo;
+  timeInfo = localtime(&now);
+  char buff[14];
+  sprintf_P(buff, PSTR("%02d:%02d"), timeInfo->tm_hour, timeInfo->tm_min);
+
+  display->setColor(WHITE);
+  display->setFont(ArialMT_Plain_10);
+  display->setTextAlignment(TEXT_ALIGN_LEFT);
+  display->drawString(0, 54, String(buff));
+  display->setTextAlignment(TEXT_ALIGN_RIGHT);
+  //String temp = String(currentWeather.temp, 1) + (IS_METRIC ? "°C" : "°F");
+  //display->drawString(128, 54, temp);
+  display->drawHorizontalLine(0, 52, 128);
+}
+
+void drawCurrentTemperature(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y) {
+  display->setFont(ArialMT_Plain_10);
+  display->setTextAlignment(TEXT_ALIGN_CENTER);
+  display->drawString(64 + x, 38 + y, "Weather description");
+
+  display->setFont(ArialMT_Plain_24);
+  display->setTextAlignment(TEXT_ALIGN_LEFT);
+  String temp = String(22, 1) + (IS_METRIC ? "°C" : "°F");
+  display->drawString(60 + x, 5 + y, temp);
+
+  display->setFont(Meteocons_Plain_36);
+  display->setTextAlignment(TEXT_ALIGN_CENTER);
+  //display->drawString(32 + x, 0 + y, currentWeather.iconMeteoCon);
+}
+
+void drawCurrentHumidity(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y) {
+  display->setFont(ArialMT_Plain_10);
+  display->setTextAlignment(TEXT_ALIGN_CENTER);
+  display->drawString(64 + x, 38 + y, "Weather description");
+
+  display->setFont(ArialMT_Plain_24);
+  display->setTextAlignment(TEXT_ALIGN_LEFT);
+  String temp = String(50, 1) + "%";
+  display->drawString(60 + x, 5 + y, temp);
+
+  display->setFont(Meteocons_Plain_36);
+  display->setTextAlignment(TEXT_ALIGN_CENTER);
+  //display->drawString(32 + x, 0 + y, currentWeather.iconMeteoCon);
 }
