@@ -10,6 +10,7 @@ This is a collection of ESP8266 and DHT22 sketches I'm using in my home.
 - https://github.com/bblanchon/ArduinoJson
 - https://github.com/adafruit/Adafruit_SPIFlash
 - https://github.com/ThingPulse/esp8266-oled-ssd1306
+- https://github.com/neptune2/simpleDSTadjust
 
 
 If you're using Mac OS High Sierra, you'll need [working](https://www.reddit.com/r/arduino/comments/7cq68i/any_new_drivers_for_ch340g_on_mac_os_high_sierra/) USB Serial drivers for the CH340G chip.

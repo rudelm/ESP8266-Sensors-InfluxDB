@@ -16,7 +16,7 @@
 #include <time.h>                 // time() ctime()
 #include <sys/time.h>             // struct timeval
 #include <coredecls.h>            // settimeofday_cb()
-
+#include <simpleDSTadjust.h>      // DST settings
 
 #include "SSD1306Wire.h"          // OLED Display drivers for SSD1306 displays
 #include "OLEDDisplayUi.h"
@@ -34,10 +34,6 @@
 DHT dht(DHTPIN, DHTTYPE);
 Influxdb influxdb;
 
-#define TZ              2         // (utc+) TZ in hours
-#define DST_MN          60        // use 60mn for summer time in some countries
-
-
 const boolean IS_METRIC = true;
 
 // Display Settings
@@ -54,9 +50,15 @@ OLEDDisplayUi   ui( &display );
 const String WDAY_NAMES[] = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
 const String MONTH_NAMES[] = {"JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"};
 
-#define TZ_MN           ((TZ)*60)
-#define TZ_SEC          ((TZ)*3600)
-#define DST_SEC         ((DST_MN)*60)
+#define TZ              1         // (utc+) TZ in hours
+#define NTP_SERVERS "time.nist.gov", "time.windows.com", "de.pool.ntp.org"
+//Central European Time (Frankfurt, Paris)
+struct dstRule StartRule = {"CEST", Last, Sun, Mar, 2, 3600};     //Central European Summer Time
+struct dstRule EndRule = {"CET", Last, Sun, Oct, 3, 0};       //Central European Standard Time
+// Setup simpleDSTadjust Library rules
+simpleDSTadjust dstAdjusted(StartRule, EndRule);
+char *dstAbbrev;
+
 time_t now;
 
 //declaring prototypes
@@ -239,13 +241,9 @@ void setup() {
   Serial.println(WiFi.localIP());
 
   /* let us set: timezone in sec, daylightOffset in sec, server_name1, server_name2, server_name3 */
-  configTime(TZ_SEC, DST_SEC, "time.nist.gov", "time.windows.com", "de.pool.ntp.org");
+  configTime(TZ * 3600, 0, NTP_SERVERS);
   delay(2000);
-  now = time(nullptr);
-  timeval tv = { now, 0 };
-  settimeofday(&tv, nullptr);
-  setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0/3", 3);   // this sets TZ to Brussels/Paris/Vienna
-  tzset();
+  now = dstAdjusted.time(&dstAbbrev);
   Serial.println("system time set in setup: ");
   Serial.println(ctime(&now));
 
@@ -288,7 +286,7 @@ void setup() {
 
 void loop() {
   char strftime_buf[64];
-  now = time(nullptr);
+  now = dstAdjusted.time(&dstAbbrev);
   Serial.println("system time in loop:");
   Serial.println(ctime(&now));
   
@@ -340,7 +338,7 @@ ClimateMeasurement getClimateMeasurement() {
 
 
 void drawDateTime(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y) {
-  now = time(nullptr);
+  now = dstAdjusted.time(&dstAbbrev);
   struct tm* timeInfo;
   timeInfo = localtime(&now);
   char buff[16];
@@ -360,7 +358,7 @@ void drawDateTime(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, in
 }
 
 void drawHeaderOverlay(OLEDDisplay *display, OLEDDisplayUiState* state) {
-  now = time(nullptr);
+  now = dstAdjusted.time(&dstAbbrev);
   struct tm* timeInfo;
   timeInfo = localtime(&now);
   char buff[14];
