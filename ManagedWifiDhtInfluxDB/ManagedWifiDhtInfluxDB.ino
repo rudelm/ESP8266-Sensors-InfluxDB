@@ -17,6 +17,7 @@
 #include <sys/time.h>             // struct timeval
 #include <coredecls.h>            // settimeofday_cb()
 #include <simpleDSTadjust.h>      // DST settings
+#include <Ticker.h>               //for checking when its time to update ntp again
 
 #include "SSD1306Wire.h"          // OLED Display drivers for SSD1306 displays
 #include "OLEDDisplayUi.h"
@@ -50,14 +51,24 @@ OLEDDisplayUi   ui( &display );
 const String WDAY_NAMES[] = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
 const String MONTH_NAMES[] = {"JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"};
 
+// Update time from NTP server every 5 hours
+#define NTP_UPDATE_INTERVAL_SEC 5*3600
 #define TZ              1         // (utc+) TZ in hours
 #define NTP_SERVERS "time.nist.gov", "time.windows.com", "de.pool.ntp.org"
+
 //Central European Time (Frankfurt, Paris)
 struct dstRule StartRule = {"CEST", Last, Sun, Mar, 2, 3600};     //Central European Summer Time
 struct dstRule EndRule = {"CET", Last, Sun, Oct, 3, 0};       //Central European Standard Time
+
 // Setup simpleDSTadjust Library rules
 simpleDSTadjust dstAdjusted(StartRule, EndRule);
 char *dstAbbrev;
+
+Ticker ticker1;
+int32_t tick;
+
+// flag changed in the ticker function to start NTP Update
+bool readyForNtpUpdate = false;
 
 time_t now;
 
@@ -240,9 +251,14 @@ void setup() {
   Serial.println("local ip");
   Serial.println(WiFi.localIP());
 
-  /* let us set: timezone in sec, daylightOffset in sec, server_name1, server_name2, server_name3 */
-  configTime(TZ * 3600, 0, NTP_SERVERS);
-  delay(2000);
+  updateNTP(); // Init the NTP time
+  printTime(0); // print initial time time now.
+
+  tick = NTP_UPDATE_INTERVAL_SEC; // Init the NTP update countdown ticker
+  ticker1.attach(1, secTicker); // Run a 1 second interval Ticker
+  Serial.print("Next NTP Update: ");
+  printTime(tick);
+
   now = dstAdjusted.time(&dstAbbrev);
   Serial.println("system time set in setup: ");
   Serial.println(ctime(&now));
@@ -285,21 +301,22 @@ void setup() {
 }
 
 void loop() {
+  if(readyForNtpUpdate)
+   {
+    readyForNtpUpdate = false;
+    printTime(0);
+    updateNTP();
+    Serial.print("\nUpdated time from NTP Server: ");
+    printTime(0);
+    Serial.print("Next NTP Update: ");
+    printTime(tick);
+  }
+  
   char strftime_buf[64];
   now = dstAdjusted.time(&dstAbbrev);
   Serial.println("system time in loop:");
   Serial.println(ctime(&now));
   
-  Serial.println(millis());
-  // simple localtime
-  Serial.print(ctime(&now));
-  //  formated localtime
-  strftime(strftime_buf, sizeof(strftime_buf), "%c", localtime(&now)); 
-  Serial.println(strftime_buf);
-  //  formated gmtime
-  strftime(strftime_buf, sizeof(strftime_buf), "%c", gmtime(&now));
-  Serial.println(strftime_buf);
-
   
   ClimateMeasurement sensorData = getClimateMeasurement();
 
@@ -336,6 +353,43 @@ ClimateMeasurement getClimateMeasurement() {
   return {h, t, 0, hic};
 }
 
+// NTP timer update ticker
+void secTicker()
+{
+  tick--;
+  if(tick<=0)
+   {
+    readyForNtpUpdate = true;
+    tick= NTP_UPDATE_INTERVAL_SEC; // Re-arm
+   }
+
+  // printTime(0);  // Uncomment if you want to see time printed every second
+}
+
+
+void updateNTP() {
+  
+  configTime(TZ * 3600, 0, NTP_SERVERS);
+
+  delay(500);
+  while (!time(nullptr)) {
+    Serial.print("#");
+    delay(1000);
+  }
+}
+
+
+void printTime(time_t offset)
+{
+  char buf[30];
+  char *dstAbbrev;
+  time_t t = dstAdjusted.time(&dstAbbrev)+offset;
+  struct tm *timeinfo = localtime (&t);
+  
+  int hour = (timeinfo->tm_hour+11)%12+1;  // take care of noon and midnight
+  sprintf(buf, "%02d/%02d/%04d %02d:%02d:%02d%s %s\n",timeinfo->tm_mon+1, timeinfo->tm_mday, timeinfo->tm_year+1900, hour, timeinfo->tm_min, timeinfo->tm_sec, timeinfo->tm_hour>=12?"pm":"am", dstAbbrev);
+  Serial.print(buf);
+}
 
 void drawDateTime(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y) {
   now = dstAdjusted.time(&dstAbbrev);
