@@ -35,6 +35,11 @@
 DHT dht(DHTPIN, DHTTYPE);
 Influxdb influxdb;
 
+float humidity = 0.0;
+float temperature = 0.0;
+char FormattedTemperature[10];
+char FormattedHumidity[10];
+
 const boolean IS_METRIC = true;
 
 // Display Settings
@@ -70,19 +75,21 @@ int32_t tick;
 // flag changed in the ticker function to start NTP Update
 bool readyForNtpUpdate = false;
 
+// flag changed in the ticker function every 1 minute
+bool readyForDHTUpdate = false;
+
 time_t now;
 
 //declaring prototypes
 void drawDateTime(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y);
-void drawCurrentTemperature(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y);
-void drawCurrentHumidity(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y);
+void drawIndoor(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y);
 void drawHeaderOverlay(OLEDDisplay *display, OLEDDisplayUiState* state);
 
 // Add frames
 // this array keeps function pointers to all frames
 // frames are the single views that slide from right to left
-FrameCallback frames[] = { drawDateTime, drawCurrentTemperature, drawCurrentHumidity };
-int numberOfFrames = 3;
+FrameCallback frames[] = { drawDateTime, drawIndoor };
+int numberOfFrames = 2;
 
 OverlayCallback overlays[] = { drawHeaderOverlay };
 int numberOfOverlays = 1;
@@ -263,6 +270,8 @@ void setup() {
   Serial.println("system time set in setup: ");
   Serial.println(ctime(&now));
 
+  // wait 2 minutes until DHT is ready to read
+  ticker1.attach(120, setReadyForDHTUpdate);
 
   // initialize display
   display.init();
@@ -275,6 +284,7 @@ void setup() {
   display.setContrast(255);
 
   ui.setTargetFPS(30);
+  ui.setTimePerFrame(10*1000); // Setup frame display time to 10 sec
 
   ui.setActiveSymbol(activeSymbole);
   ui.setInactiveSymbol(inactiveSymbole);
@@ -311,44 +321,48 @@ void loop() {
     Serial.print("Next NTP Update: ");
     printTime(tick);
   }
-  
-  char strftime_buf[64];
-  now = dstAdjusted.time(&dstAbbrev);
-  Serial.println("system time in loop:");
-  Serial.println(ctime(&now));
-  
-  
-  ClimateMeasurement sensorData = getClimateMeasurement();
 
-  influxdb.setHost(influxdb_server);
-  influxdb.setPort(atoi(influxdb_port));
-  influxdb.opendb(String(influxdb_db), String(influxdb_user), String(influxdb_password));
+  if (readyForDHTUpdate && ui.getUiState()->frameState == FIXED)
+  {
+    ClimateMeasurement sensorData = getClimateMeasurement();
+    influxdb.setHost(influxdb_server);
+    influxdb.setPort(atoi(influxdb_port));
+    influxdb.opendb(String(influxdb_db), String(influxdb_user), String(influxdb_password));
+    
+    if (isnan(sensorData.humidity) || isnan(sensorData.temperature)) {
+      Serial.println("Failed to read from DHT sensor!");
+      return;
+    }
+    
+    String data = String(measurement) + ",node=" + String(node) + " t=" + String(sensorData.temperature) + ",h=" + String(sensorData.humidity) + ",hic=" + String(sensorData.heatIndex);
   
-  if (isnan(sensorData.humidity) || isnan(sensorData.temperature)) {
-    Serial.println("Failed to read from DHT sensor!");
-    return;
+    Serial.println("Writing data to host " + String(influxdb_server) + ":" +
+                   String(influxdb_port) + "'s database=" + String(influxdb_db));
+    Serial.println(data);
+    influxdb.write(data);
+    Serial.println(influxdb.response() == DB_SUCCESS ? "HTTP write success"
+                   : "Writing failed");
+
+    // Wait again for DHT Sensor to become ready
+    readyForDHTUpdate = false;
   }
-  
-  
-  String data = String(measurement) + ",node=" + String(node) + " t=" + String(sensorData.temperature) + ",h=" + String(sensorData.humidity) + ",hic=" + String(sensorData.heatIndex);
 
-  Serial.println("Writing data to host " + String(influxdb_server) + ":" +
-                 String(influxdb_port) + "'s database=" + String(influxdb_db));
-  Serial.println(data);
-  influxdb.write(data);
-  Serial.println(influxdb.response() == DB_SUCCESS ? "HTTP write success"
-                 : "Writing failed");
+  int remainingTimeBudget = ui.update();
 
-  delay(DHT_READ_INTERVAL);
-
-  // show something on the display
-  ui.update();
+  if (remainingTimeBudget > 0) {
+    // You can do some work here
+    // Don't do stuff if you are below your
+    // time budget.
+    delay(remainingTimeBudget);
+  }
 }
 
 ClimateMeasurement getClimateMeasurement() {
   float h = dht.readHumidity();
   float t = dht.readTemperature();
   float hic = dht.computeHeatIndex(t, h, false);
+  temperature = t;
+  humidity = h;
 
   return {h, t, 0, hic};
 }
@@ -411,6 +425,17 @@ void drawDateTime(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, in
   display->setTextAlignment(TEXT_ALIGN_LEFT);
 }
 
+void drawIndoor(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y) {
+  display->setTextAlignment(TEXT_ALIGN_CENTER);
+  display->setFont(ArialMT_Plain_10);
+  display->drawString(64 + x, 0, "DHT22 Indoor Sensor" );
+  display->setFont(ArialMT_Plain_16);
+  dtostrf(temperature,4, 1, FormattedTemperature);
+  display->drawString(64+x, 12, "Temp: " + String(FormattedTemperature) + (IS_METRIC ? "°C": "°F"));
+  dtostrf(humidity,4, 1, FormattedHumidity);
+  display->drawString(64+x, 30, "Humidity: " + String(FormattedHumidity) + "%");
+}
+
 void drawHeaderOverlay(OLEDDisplay *display, OLEDDisplayUiState* state) {
   now = dstAdjusted.time(&dstAbbrev);
   struct tm* timeInfo;
@@ -428,32 +453,7 @@ void drawHeaderOverlay(OLEDDisplay *display, OLEDDisplayUiState* state) {
   display->drawHorizontalLine(0, 52, 128);
 }
 
-void drawCurrentTemperature(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y) {
-  display->setFont(ArialMT_Plain_10);
-  display->setTextAlignment(TEXT_ALIGN_CENTER);
-  display->drawString(64 + x, 38 + y, "Weather description");
-
-  display->setFont(ArialMT_Plain_24);
-  display->setTextAlignment(TEXT_ALIGN_LEFT);
-  String temp = String(22, 1) + (IS_METRIC ? "°C" : "°F");
-  display->drawString(60 + x, 5 + y, temp);
-
-  display->setFont(Meteocons_Plain_36);
-  display->setTextAlignment(TEXT_ALIGN_CENTER);
-  //display->drawString(32 + x, 0 + y, currentWeather.iconMeteoCon);
-}
-
-void drawCurrentHumidity(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y) {
-  display->setFont(ArialMT_Plain_10);
-  display->setTextAlignment(TEXT_ALIGN_CENTER);
-  display->drawString(64 + x, 38 + y, "Weather description");
-
-  display->setFont(ArialMT_Plain_24);
-  display->setTextAlignment(TEXT_ALIGN_LEFT);
-  String temp = String(50, 1) + "%";
-  display->drawString(60 + x, 5 + y, temp);
-
-  display->setFont(Meteocons_Plain_36);
-  display->setTextAlignment(TEXT_ALIGN_CENTER);
-  //display->drawString(32 + x, 0 + y, currentWeather.iconMeteoCon);
+void setReadyForDHTUpdate() {
+  Serial.println("Setting readyForDHTUpdate to true");
+  readyForDHTUpdate = true;
 }
