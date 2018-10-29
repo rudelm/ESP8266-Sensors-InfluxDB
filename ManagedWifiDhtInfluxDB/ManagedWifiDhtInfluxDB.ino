@@ -7,7 +7,6 @@
 #include <ESP8266WebServer.h>     // Local WebServer used to serve the configuration portal
 #include <WiFiManager.h>          // https://github.com/tzapu/WiFiManager WiFi Configuration Magic
 
-#include <ESPinfluxdb.h>          // InfluxDB wrapper
 #include <DHT.h>                  // Library for DHT22 temperature sensor
 #include <DHT_U.h>
 #include <ArduinoJson.h>          // https://github.com/bblanchon/ArduinoJson
@@ -33,7 +32,6 @@
 //#define RESET_DATA              // comment this out to reset stored data and configuration
 
 DHT dht(DHTPIN, DHTTYPE);
-Influxdb influxdb;
 
 float humidity = 0.0;
 float temperature = 0.0;
@@ -94,15 +92,6 @@ int numberOfFrames = 2;
 OverlayCallback overlays[] = { drawHeaderOverlay };
 int numberOfOverlays = 1;
 
-// define your default values here, if there are different values in config.json, they are overwritten.
-char influxdb_server[60];
-char influxdb_port[6] = "8086";
-char influxdb_db[30] = "default";
-char influxdb_user[30];
-char influxdb_password[30];
-char measurement[30] = "climate";
-char node[30];
-
 //flag for saving data
 bool shouldSaveConfig = false;
 
@@ -144,15 +133,6 @@ void setup() {
         json.printTo(Serial);
         if (json.success()) {
           Serial.println("\nparsed json");
-
-          strcpy(influxdb_server, json["influxdb_server"]);
-          strcpy(influxdb_port, json["influxdb_port"]);
-          strcpy(influxdb_db, json["influxdb_db"]);
-          strcpy(influxdb_user, json["influxdb_user"]);
-          strcpy(influxdb_password, json["influxdb_password"]);
-          strcpy(measurement, json["measurement"]);
-          strcpy(node, json["node"]);
-
         } else {
           Serial.println("failed to load json config");
         }
@@ -162,17 +142,6 @@ void setup() {
     Serial.println("failed to mount FS");
   }
   //end read
-
-  // The extra parameters to be configured (can be either global or just in the setup)
-  // After connecting, parameter.getValue() will get you the configured value
-  // id/name placeholder/prompt default length
-  WiFiManagerParameter custom_influxdb_server("server", "InfluxDB server", influxdb_server, 60);
-  WiFiManagerParameter custom_influxdb_port("port", "InfluxDB server port", influxdb_port, 6);
-  WiFiManagerParameter custom_influxdb_db("db", "InfluxDB database", influxdb_db, 30);
-  WiFiManagerParameter custom_influxdb_user("user", "InfluxDB username", influxdb_user, 30);
-  WiFiManagerParameter custom_influxdb_password("password", "InfluxDB userpassword", influxdb_password, 30);
-  WiFiManagerParameter custom_measurement("measurement", "InfluxDB measurement", measurement, 30);
-  WiFiManagerParameter custom_node("node", "Node name for better identification", node, 30);
 
   // WiFiManager
   // Local intialization. Once its business is done, there is no need to keep it around
@@ -185,13 +154,6 @@ void setup() {
   //wifiManager.setSTAStaticIPConfig(IPAddress(10,0,1,99), IPAddress(10,0,1,1), IPAddress(255,255,255,0));
 
   // add all your parameters here
-  wifiManager.addParameter(&custom_influxdb_server);
-  wifiManager.addParameter(&custom_influxdb_port);
-  wifiManager.addParameter(&custom_influxdb_db);
-  wifiManager.addParameter(&custom_influxdb_user);
-  wifiManager.addParameter(&custom_influxdb_password);
-  wifiManager.addParameter(&custom_measurement);
-  wifiManager.addParameter(&custom_node);
 
   #if defined(RESET_DATA)
     // reset settings - for testing
@@ -223,26 +185,13 @@ void setup() {
   Serial.println("connected to the selected WiFi...");
 
   // read updated parameters
-  strcpy(influxdb_server, custom_influxdb_server.getValue());
-  strcpy(influxdb_port, custom_influxdb_port.getValue());
-  strcpy(influxdb_db, custom_influxdb_db.getValue());
-  strcpy(influxdb_user, custom_influxdb_user.getValue());
-  strcpy(influxdb_password, custom_influxdb_password.getValue());
-  strcpy(measurement, custom_measurement.getValue());
-  strcpy(node, custom_node.getValue());
 
   // save the custom parameters to FS
   if (shouldSaveConfig) {
     Serial.println("saving config");
     DynamicJsonBuffer jsonBuffer;
     JsonObject& json = jsonBuffer.createObject();
-    json["influxdb_server"] = influxdb_server;
-    json["influxdb_port"] = influxdb_port;
-    json["influxdb_db"] = influxdb_db;
-    json["influxdb_user"] = influxdb_user;
-    json["influxdb_password"] = influxdb_password;
-    json["measurement"] = measurement;
-    json["node"] = node;
+
     
     File configFile = SPIFFS.open("/config.json", "w");
     if (!configFile) {
@@ -325,23 +274,11 @@ void loop() {
   if (readyForDHTUpdate && ui.getUiState()->frameState == FIXED)
   {
     ClimateMeasurement sensorData = getClimateMeasurement();
-    influxdb.setHost(influxdb_server);
-    influxdb.setPort(atoi(influxdb_port));
-    influxdb.opendb(String(influxdb_db), String(influxdb_user), String(influxdb_password));
     
     if (isnan(sensorData.humidity) || isnan(sensorData.temperature)) {
       Serial.println("Failed to read from DHT sensor!");
       return;
     }
-    
-    String data = String(measurement) + ",node=" + String(node) + " t=" + String(sensorData.temperature) + ",h=" + String(sensorData.humidity) + ",hic=" + String(sensorData.heatIndex);
-  
-    Serial.println("Writing data to host " + String(influxdb_server) + ":" +
-                   String(influxdb_port) + "'s database=" + String(influxdb_db));
-    Serial.println(data);
-    influxdb.write(data);
-    Serial.println(influxdb.response() == DB_SUCCESS ? "HTTP write success"
-                   : "Writing failed");
 
     // Wait again for DHT Sensor to become ready
     readyForDHTUpdate = false;
