@@ -30,10 +30,10 @@ char influxdb_password[30];
 char measurement[30] = "climate";
 char node[30];
 
-//flag for saving data
+// flag for saving data
 bool shouldSaveConfig = false;
 
-//callback notifying us of the need to save config
+// callback notifying us of the need to save config
 void saveConfigCallback () {
   Serial.println("Should save config");
   shouldSaveConfig = true;
@@ -47,6 +47,7 @@ void setup() {
 
   #if defined(RESET_DATA)
     // clean FS, for testing
+    Serial.println("cleaning FS...");
     SPIFFS.format();
   #endif
 
@@ -66,11 +67,17 @@ void setup() {
         std::unique_ptr<char[]> buf(new char[size]);
 
         configFile.readBytes(buf.get(), size);
-        DynamicJsonBuffer jsonBuffer;
-        JsonObject& json = jsonBuffer.parseObject(buf.get());
-        json.printTo(Serial);
-        if (json.success()) {
+        
+        const size_t capacity = JSON_OBJECT_SIZE(6) + 255;
+        DynamicJsonDocument json(capacity);
+        DeserializationError err = deserializeJson(json, buf.get());
+        if (err) {
+          Serial.print("deserialization of JSON failed with code ");
+          Serial.println(err.c_str());
+        }
+        else {
           Serial.println("\nparsed json");
+          serializeJson(json, Serial);
 
           strcpy(influxdb_server, json["influxdb_server"]);
           strcpy(influxdb_port, json["influxdb_port"]);
@@ -79,9 +86,6 @@ void setup() {
           strcpy(influxdb_password, json["influxdb_password"]);
           strcpy(measurement, json["measurement"]);
           strcpy(node, json["node"]);
-
-        } else {
-          Serial.println("failed to load json config");
         }
       }
     }
@@ -161,8 +165,11 @@ void setup() {
   // save the custom parameters to FS
   if (shouldSaveConfig) {
     Serial.println("saving config");
-    DynamicJsonBuffer jsonBuffer;
-    JsonObject& json = jsonBuffer.createObject();
+
+    const size_t capacity = JSON_OBJECT_SIZE(6) + 255;
+    DynamicJsonDocument json(capacity);
+
+    Serial.println("\nparsed json");
     json["influxdb_server"] = influxdb_server;
     json["influxdb_port"] = influxdb_port;
     json["influxdb_db"] = influxdb_db;
@@ -170,14 +177,14 @@ void setup() {
     json["influxdb_password"] = influxdb_password;
     json["measurement"] = measurement;
     json["node"] = node;
-    
+
     File configFile = SPIFFS.open("/config.json", "w");
     if (!configFile) {
       Serial.println("failed to open config file for writing");
     }
 
-    json.printTo(Serial);
-    json.printTo(configFile);
+    serializeJson(json, Serial);
+    serializeJson(json, configFile);
     configFile.close();
     //end save
   }
