@@ -1,6 +1,7 @@
 /*
 code taken from https://github.com/tzapu/WiFiManager/blob/master/examples/AutoConnectWithFSParameters/AutoConnectWithFSParameters.ino
-// and from https://github.com/kentaylor/WiFiManager/blob/master/examples/ConfigOnDoubleReset/ConfigOnDoubleReset.ino
+and from https://github.com/kentaylor/WiFiManager/blob/master/examples/ConfigOnDoubleReset/ConfigOnDoubleReset.ino
+and from https://github.com/kentaylor/WiFiManager/blob/master/examples/ConfigOnSwitchFS/ConfigOnSwitchFS.ino
 
 This sketch will open a configuration portal when the reset button is pressed twice. 
 This method works well on Wemos boards which have a single reset button on board. It avoids using a pin for launching the configuration portal.
@@ -37,6 +38,9 @@ This example, contributed by DataCute needs the Double Reset Detector library fr
 // RTC Memory Address for the DoubleResetDetector to use
 #define DRD_ADDRESS 0
 
+// Constants
+const char* CONFIG_FILE = "/config.json";
+
 DoubleResetDetector drd(DRD_TIMEOUT, DRD_ADDRESS);
 // Indicates whether ESP has WiFi credentials saved from previous session, or double reset detected
 bool initialConfig = false;
@@ -57,6 +61,11 @@ char node[30];
 
 // flag for saving data
 bool shouldSaveConfig = false;
+
+// Function Prototypes
+
+bool readConfigFile();
+bool writeConfigFile();
 
 // callback notifying us of the need to save config
 void saveConfigCallback () {
@@ -86,10 +95,10 @@ void setup() {
 
   if (SPIFFS.begin()) {
     Serial.println("mounted file system");
-    if (SPIFFS.exists("/config.json")) {
+    if (SPIFFS.exists(CONFIG_FILE)) {
       //file exists, reading and loading
       Serial.println("reading config file");
-      File configFile = SPIFFS.open("/config.json", "r");
+      File configFile = SPIFFS.open(CONFIG_FILE, "r");
       if (configFile) {
         Serial.println("opened config file");
         size_t size = configFile.size();
@@ -210,7 +219,7 @@ void setup() {
     json["measurement"] = measurement;
     json["node"] = node;
 
-    File configFile = SPIFFS.open("/config.json", "w");
+    File configFile = SPIFFS.open(CONFIG_FILE, "w");
     if (!configFile) {
       Serial.println("failed to open config file for writing");
     }
@@ -250,4 +259,82 @@ void loop() {
                  : "Writing failed");
 
   delay(DHT_READ_INTERVAL);
+}
+
+bool readConfigFile() {
+  // this opens the config file in read-mode
+  File f = SPIFFS.open(CONFIG_FILE, "r");
+  
+  if (!f) {
+    Serial.println("Configuration file not found");
+    return false;
+  } else {
+    // we could open the file
+    size_t size = f.size();
+    // Allocate a buffer to store contents of the file.
+    std::unique_ptr<char[]> buf(new char[size]);
+
+    // Read and store file contents in buf
+    f.readBytes(buf.get(), size);
+    // Closing file
+    f.close();
+    // Using dynamic JSON buffer which is not the recommended memory model, but anyway
+    // See https://github.com/bblanchon/ArduinoJson/wiki/Memory%20model
+    DynamicJsonBuffer jsonBuffer;
+    // Parse JSON string
+    JsonObject& json = jsonBuffer.parseObject(buf.get());
+    // Test if parsing succeeds.
+    if (!json.success()) {
+      Serial.println("JSON parseObject() failed");
+      return false;
+    }
+    json.printTo(Serial);
+
+    // Parse all config file parameters, override 
+    // local config variables with parsed values
+    if (json.containsKey("thingspeakApiKey")) {
+      strcpy(thingspeakApiKey, json["thingspeakApiKey"]);      
+    }
+    
+    if (json.containsKey("sensorDht22")) {
+      sensorDht22 = json["sensorDht22"];
+    }
+
+    if (json.containsKey("pinSda")) {
+      pinSda = json["pinSda"];
+    }
+    
+    if (json.containsKey("pinScl")) {
+      pinScl = json["pinScl"];
+    }
+  }
+  Serial.println("\nConfig file was successfully parsed");
+  return true;
+}
+
+bool writeConfigFile() {
+  Serial.println("Saving config file");
+  DynamicJsonBuffer jsonBuffer;
+  JsonObject& json = jsonBuffer.createObject();
+
+  // JSONify local configuration parameters
+  json["thingspeakApiKey"] = thingspeakApiKey;
+  json["sensorDht22"] = sensorDht22;
+  json["pinSda"] = pinSda;
+  json["pinScl"] = pinScl;
+
+  // Open file for writing
+  File f = SPIFFS.open(CONFIG_FILE, "w");
+  if (!f) {
+    Serial.println("Failed to open config file for writing");
+    return false;
+  }
+
+  json.prettyPrintTo(Serial);
+  // Write data to file and close it
+  json.printTo(f);
+  f.close();
+
+  Serial.println("\nConfig file was successfully saved");
+  return true;
 }
