@@ -314,26 +314,27 @@ bool readConfigFile() {
 
 bool writeConfigFile() {
   Serial.println("Saving config file");
-  DynamicJsonBuffer jsonBuffer;
-  JsonObject& json = jsonBuffer.createObject();
 
-  // JSONify local configuration parameters
-  json["thingspeakApiKey"] = thingspeakApiKey;
-  json["sensorDht22"] = sensorDht22;
-  json["pinSda"] = pinSda;
-  json["pinScl"] = pinScl;
+  const size_t capacity = JSON_OBJECT_SIZE(6) + 255;
+  DynamicJsonDocument json(capacity);
 
-  // Open file for writing
-  File f = SPIFFS.open(CONFIG_FILE, "w");
-  if (!f) {
-    Serial.println("Failed to open config file for writing");
+  json["influxdb_server"] = influxdb_server;
+  json["influxdb_port"] = influxdb_port;
+  json["influxdb_db"] = influxdb_db;
+  json["influxdb_user"] = influxdb_user;
+  json["influxdb_password"] = influxdb_password;
+  json["measurement"] = measurement;
+  json["node"] = node;
+
+  File configFile = SPIFFS.open(CONFIG_FILE, "w");
+  if (!configFile) {
+    Serial.println("failed to open config file for writing");
     return false;
   }
 
-  json.prettyPrintTo(Serial);
-  // Write data to file and close it
-  json.printTo(f);
-  f.close();
+  serializeJson(json, Serial);
+  serializeJson(json, configFile);
+  configFile.close();
 
   Serial.println("\nConfig file was successfully saved");
   return true;
