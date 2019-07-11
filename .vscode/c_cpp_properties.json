@@ -24,7 +24,8 @@
                     "~/Library/Arduino15/packages/esp8266/hardware/esp8266/2.5.2/libraries/ESP8266WiFi",
                     "~/Library/Arduino15/packages/esp8266/hardware/esp8266/2.5.2/libraries/ESP8266WebServer",
                     "~/Library/Arduino15/packages/esp8266/hardware/esp8266/2.5.2/libraries/DNSServer",
-                    "~/Documents/Arduino/libraries"
+                    "~/Documents/Arduino/libraries",
+                    "~/Documents/Arduino/libraries/DoubleResetDetector"
                 ]
             },
             "forcedInclude": []

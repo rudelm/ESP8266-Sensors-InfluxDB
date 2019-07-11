@@ -1,4 +1,17 @@
-// code taken from https://github.com/tzapu/WiFiManager/blob/master/examples/AutoConnectWithFSParameters/AutoConnectWithFSParameters.ino
+/*
+code taken from https://github.com/tzapu/WiFiManager/blob/master/examples/AutoConnectWithFSParameters/AutoConnectWithFSParameters.ino
+// and from https://github.com/kentaylor/WiFiManager/blob/master/examples/ConfigOnDoubleReset/ConfigOnDoubleReset.ino
+
+This sketch will open a configuration portal when the reset button is pressed twice. 
+This method works well on Wemos boards which have a single reset button on board. It avoids using a pin for launching the configuration portal.
+How It Works
+When the ESP8266 loses power all data in RAM is lost but when it is reset the contents of a small region of RAM is preserved. So when the device starts up it checks this region of ram for a flag to see if it has been recently reset. If so it launches a configuration portal, if not it sets the reset flag. After running for a while this flag is cleared so that it will only launch the configuration portal in response to closely spaced resets.
+Settings
+There are two values to be set in the sketch.
+DRD_TIMEOUT - Number of seconds to wait for the second reset. Set to 10 in the example.
+DRD_ADDRESS - The address in RTC RAM to store the flag. This memory must not be used for other purposes in the same sketch. Set to 0 in the example.
+This example, contributed by DataCute needs the Double Reset Detector library from https://github.com/datacute/DoubleResetDetector .
+*/
 
 #include <FS.h>                   // this needs to be first, or it all crashes and burns...
 #include <ESP8266WiFi.h>          // ESP8266 Core WiFi Library (you most likely already have this in your sketch)
@@ -7,6 +20,7 @@
 #include <ESP8266WebServer.h>     // Local WebServer used to serve the configuration portal
 #include <WiFiManager.h>          // https://github.com/tzapu/WiFiManager WiFi Configuration Magic
 
+#include <DoubleResetDetector.h>  //https://github.com/datacute/DoubleResetDetector
 #include <ESPinfluxdb.h>          // InfluxDB wrapper
 #include <DHT.h>                  // Library for DHT22 temperature sensor
 #include <DHT_U.h>
@@ -15,6 +29,17 @@
 #define DHTPIN 12                 // DHT connection on GPIO Pin 12 or D6 of NodeMCU LoLin V3
 #define DHTTYPE DHT22             // DHT 22
 #define DHT_READ_INTERVAL 60000   // Read temp info every 60s
+
+// Number of seconds after reset during which a 
+// subseqent reset will be considered a double reset.
+#define DRD_TIMEOUT 10
+
+// RTC Memory Address for the DoubleResetDetector to use
+#define DRD_ADDRESS 0
+
+DoubleResetDetector drd(DRD_TIMEOUT, DRD_ADDRESS);
+// Indicates whether ESP has WiFi credentials saved from previous session, or double reset detected
+bool initialConfig = false;
 
 //#define RESET_DATA              // comment this out to reset stored data and configuration
 
@@ -44,6 +69,11 @@ void setup() {
   Serial.println();
 
   dht.begin();
+
+  if (drd.detectDoubleReset()) {
+    Serial.println("Double Reset Detected");
+    initialConfig = true;
+  }
 
   #if defined(RESET_DATA)
     // clean FS, for testing
@@ -138,13 +168,13 @@ void setup() {
   // sets timeout until configuration portal gets turned off
   // useful to make it all retry or go to sleep
   // in seconds
-  wifiManager.setTimeout(300);
+  wifiManager.setConfigPortalTimeout(300);
 
   // fetches ssid and pass and tries to connect
   // if it does not connect it starts an access point with the specified name
   // here  "DHT22-Sensor"
   // and goes into a blocking loop awaiting configuration
-  if (!wifiManager.autoConnect("DHT22-Sensor", "configureMe")) {
+  if (!wifiManager.startConfigPortal("DHT22-Sensor", "configureMe")) {
     Serial.println("failed to connect and hit timeout");
     delay(3000);
     // reset and try again, or maybe put it to deep sleep
@@ -194,6 +224,7 @@ void setup() {
   Serial.println("local ip");
   Serial.println(WiFi.localIP());
 }
+//end setup
 
 void loop() {
   float h = dht.readHumidity();

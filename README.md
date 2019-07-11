@@ -6,7 +6,8 @@ This is a collection of ESP8266 and DHT22 sketches I'm using in my home.
 - https://github.com/adafruit/DHT-sensor-library
 - https://github.com/adafruit/Adafruit_Sensor
 - https://github.com/rudelm/ESP_influxdb/tree/fix-constructor - I needed an empty default constructor for this project
-- https://github.com/tzapu/WiFiManager
+- ~~https://github.com/tzapu/WiFiManager~~ - replaced with https://github.com/kentaylor/WiFiManager Replace the existing WifiManager with this code, or rename the previous code accordingly
+- https://github.com/datacute/DoubleResetDetector
 - https://github.com/bblanchon/ArduinoJson
 - https://github.com/adafruit/Adafruit_SPIFlash
 - https://github.com/esp8266/arduino-esp8266fs-plugin/releases 
@@ -42,5 +43,6 @@ After you've entered all necessary information, the settings will be persisted a
 ## Troubleshooting
 If you don't complete the configuration in less than 5 minutes, the ESP will disconnect you. You need to reconnect to the Wifi for another configuration run.
 
-If you've ever used the ESP8266 for anything else, it might happen, that you still have a Wifi Configuration stored. In this case, comment out the `#define RESET_DATA` definition to clear the memory. After upload comment this define back in and flash again. The data should now be wiped.
+Previous versions of the code used a define to wipe the configuration data. This was quite annoying since you've always need to have access to a computer and access to the sourcecode to make the configuration change. Using https://github.com/kentaylor/WiFiManager I'm able to reset the configuration once you'll hit the reset button on the ESP twice in a given amount of time (currently 10s). 
 
+This will bring back the Wifi AP and you're able to reconfigure.
