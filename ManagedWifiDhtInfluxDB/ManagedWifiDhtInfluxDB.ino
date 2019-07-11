@@ -67,7 +67,9 @@ void setup() {
         std::unique_ptr<char[]> buf(new char[size]);
 
         configFile.readBytes(buf.get(), size);
-        
+
+        // see https://arduinojson.org/v6/assistant/
+        // we use a json hash with 6 keys, the JSON_OBJECT_SIZE macro takes the number of keys
         const size_t capacity = JSON_OBJECT_SIZE(6) + 255;
         DynamicJsonDocument json(capacity);
         DeserializationError err = deserializeJson(json, buf.get());
