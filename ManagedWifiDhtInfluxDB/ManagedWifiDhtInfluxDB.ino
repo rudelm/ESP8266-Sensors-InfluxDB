@@ -19,7 +19,7 @@ This example, contributed by DataCute needs the Double Reset Detector library fr
 
 #include <DNSServer.h>            // Local DNS Server used for redirecting all requests to the configuration portal
 #include <ESP8266WebServer.h>     // Local WebServer used to serve the configuration portal
-#include <WiFiManager.h>          // https://github.com/tzapu/WiFiManager WiFi Configuration Magic
+#include <WiFiManager.h>          
 
 #include <DoubleResetDetector.h>  //https://github.com/datacute/DoubleResetDetector
 #include <ESPinfluxdb.h>          // InfluxDB wrapper
@@ -187,6 +187,58 @@ void setup() {
   } else {
     Serial.println("failed to mount FS");
   }
+
+  // initialize NTP and display
+  updateNTP(); // Init the NTP time
+  printTime(0); // print initial time time now.
+
+  tick = NTP_UPDATE_INTERVAL_SEC; // Init the NTP update countdown ticker
+  ticker1.attach(1, secTicker); // Run a 1 second interval Ticker
+  Serial.print("Next NTP Update: ");
+  printTime(tick);
+
+  now = dstAdjusted.time(&dstAbbrev);
+  Serial.println("system time set in setup: ");
+  Serial.println(ctime(&now));
+
+  // wait 2 minutes until DHT is ready to read
+  ticker1.attach(120, setReadyForDHTUpdate);
+
+  // initialize display
+  display.init();
+  display.clear();
+  display.display();
+
+  //display.flipScreenVertically();
+  display.setFont(ArialMT_Plain_10);
+  display.setTextAlignment(TEXT_ALIGN_CENTER);
+  display.setContrast(255);
+
+  ui.setTargetFPS(30);
+  ui.setTimePerFrame(10*1000); // Setup frame display time to 10 sec
+
+  ui.setActiveSymbol(activeSymbole);
+  ui.setInactiveSymbol(inactiveSymbole);
+
+  // You can change this to
+  // TOP, LEFT, BOTTOM, RIGHT
+  ui.setIndicatorPosition(BOTTOM);
+
+  // Defines where the first frame is located in the bar.
+  ui.setIndicatorDirection(LEFT_RIGHT);
+
+  // You can change the transition that is used
+  // SLIDE_LEFT, SLIDE_RIGHT, SLIDE_TOP, SLIDE_DOWN
+  ui.setFrameAnimation(SLIDE_LEFT);
+
+  ui.setFrames(frames, numberOfFrames);
+
+  ui.setOverlays(overlays, numberOfOverlays);
+
+  // Inital UI takes care of initalising the display too.
+  ui.init();
+
+  Serial.println("");
 }
 //end setup
 
@@ -282,29 +334,48 @@ void loop() {
     // reset config mode for next loop iteration
     initialConfig = false;
   } else {
-    float h = dht.readHumidity();
-    float t = dht.readTemperature();
-
-    influxdb.setHost(influxdb_server);
-    influxdb.setPort(atoi(influxdb_port));
-    influxdb.opendb(String(influxdb_db), String(influxdb_user), String(influxdb_password));
-    
-    if (isnan(h) || isnan(t)) {
-      Serial.println("Failed to read from DHT sensor!");
-      return;
+    if(readyForNtpUpdate) {
+      readyForNtpUpdate = false;
+      printTime(0);
+      updateNTP();
+      Serial.print("\nUpdated time from NTP Server: ");
+      printTime(0);
+      Serial.print("Next NTP Update: ");
+      printTime(tick);
     }
-    float hic = dht.computeHeatIndex(t, h, false);
+
+    if (readyForDHTUpdate && ui.getUiState()->frameState == FIXED) {
+      ClimateMeasurement sensorData = getClimateMeasurement();
+      influxdb.setHost(influxdb_server);
+      influxdb.setPort(atoi(influxdb_port));
+      influxdb.opendb(String(influxdb_db), String(influxdb_user), String(influxdb_password));
+      
+      if (isnan(sensorData.humidity) || isnan(sensorData.temperature)) {
+        Serial.println("Failed to read from DHT sensor!");
+        return;
+      }
+      
+      String data = String(measurement) + ",node=" + String(node) + " t=" + String(sensorData.temperature) + ",h=" + String(sensorData.humidity) + ",hic=" + String(sensorData.heatIndex);
     
-    String data = String(measurement) + ",node=" + String(node) + " t=" + String(t) + ",h=" + String(h) + ",hic=" + String(hic);
+      Serial.println("Writing data to host " + String(influxdb_server) + ":" +
+                    String(influxdb_port) + "'s database=" + String(influxdb_db));
+      Serial.println(data);
+      influxdb.write(data);
+      Serial.println(influxdb.response() == DB_SUCCESS ? "HTTP write success"
+                    : "Writing failed");
 
-    Serial.println("Writing data to host " + String(influxdb_server) + ":" +
-                  String(influxdb_port) + "'s database=" + String(influxdb_db));
-    Serial.println(data);
-    influxdb.write(data);
-    Serial.println(influxdb.response() == DB_SUCCESS ? "HTTP write success"
-                  : "Writing failed");
+      // Wait again for DHT Sensor to become ready
+      readyForDHTUpdate = false;
+    }
 
-    delay(DHT_READ_INTERVAL);
+    int remainingTimeBudget = ui.update();
+
+    if (remainingTimeBudget > 0) {
+      // You can do some work here
+      // Don't do stuff if you are below your
+      // time budget.
+      delay(remainingTimeBudget);
+    }
   }
 }
 
@@ -379,7 +450,6 @@ bool readConfigFile() {
 bool writeConfigFile() {
   Serial.println("Saving config file");
 
-<<<<<<< HEAD
   const size_t capacity = JSON_OBJECT_SIZE(6) + 255;
   DynamicJsonDocument json(capacity);
 
@@ -403,107 +473,6 @@ bool writeConfigFile() {
 
   Serial.println("\nConfig file was successfully saved");
   return true;
-=======
-  Serial.println("local ip");
-  Serial.println(WiFi.localIP());
-
-  updateNTP(); // Init the NTP time
-  printTime(0); // print initial time time now.
-
-  tick = NTP_UPDATE_INTERVAL_SEC; // Init the NTP update countdown ticker
-  ticker1.attach(1, secTicker); // Run a 1 second interval Ticker
-  Serial.print("Next NTP Update: ");
-  printTime(tick);
-
-  now = dstAdjusted.time(&dstAbbrev);
-  Serial.println("system time set in setup: ");
-  Serial.println(ctime(&now));
-
-  // wait 2 minutes until DHT is ready to read
-  ticker1.attach(120, setReadyForDHTUpdate);
-
-  // initialize display
-  display.init();
-  display.clear();
-  display.display();
-
-  //display.flipScreenVertically();
-  display.setFont(ArialMT_Plain_10);
-  display.setTextAlignment(TEXT_ALIGN_CENTER);
-  display.setContrast(255);
-
-  ui.setTargetFPS(30);
-  ui.setTimePerFrame(10*1000); // Setup frame display time to 10 sec
-
-  ui.setActiveSymbol(activeSymbole);
-  ui.setInactiveSymbol(inactiveSymbole);
-
-  // You can change this to
-  // TOP, LEFT, BOTTOM, RIGHT
-  ui.setIndicatorPosition(BOTTOM);
-
-  // Defines where the first frame is located in the bar.
-  ui.setIndicatorDirection(LEFT_RIGHT);
-
-  // You can change the transition that is used
-  // SLIDE_LEFT, SLIDE_RIGHT, SLIDE_TOP, SLIDE_DOWN
-  ui.setFrameAnimation(SLIDE_LEFT);
-
-  ui.setFrames(frames, numberOfFrames);
-
-  ui.setOverlays(overlays, numberOfOverlays);
-
-  // Inital UI takes care of initalising the display too.
-  ui.init();
-
-  Serial.println("");
-}
-
-void loop() {
-  if(readyForNtpUpdate)
-   {
-    readyForNtpUpdate = false;
-    printTime(0);
-    updateNTP();
-    Serial.print("\nUpdated time from NTP Server: ");
-    printTime(0);
-    Serial.print("Next NTP Update: ");
-    printTime(tick);
-  }
-
-  if (readyForDHTUpdate && ui.getUiState()->frameState == FIXED)
-  {
-    ClimateMeasurement sensorData = getClimateMeasurement();
-    influxdb.setHost(influxdb_server);
-    influxdb.setPort(atoi(influxdb_port));
-    influxdb.opendb(String(influxdb_db), String(influxdb_user), String(influxdb_password));
-    
-    if (isnan(sensorData.humidity) || isnan(sensorData.temperature)) {
-      Serial.println("Failed to read from DHT sensor!");
-      return;
-    }
-    
-    String data = String(measurement) + ",node=" + String(node) + " t=" + String(sensorData.temperature) + ",h=" + String(sensorData.humidity) + ",hic=" + String(sensorData.heatIndex);
-  
-    Serial.println("Writing data to host " + String(influxdb_server) + ":" +
-                   String(influxdb_port) + "'s database=" + String(influxdb_db));
-    Serial.println(data);
-    influxdb.write(data);
-    Serial.println(influxdb.response() == DB_SUCCESS ? "HTTP write success"
-                   : "Writing failed");
-
-    // Wait again for DHT Sensor to become ready
-    readyForDHTUpdate = false;
-  }
-
-  int remainingTimeBudget = ui.update();
-
-  if (remainingTimeBudget > 0) {
-    // You can do some work here
-    // Don't do stuff if you are below your
-    // time budget.
-    delay(remainingTimeBudget);
-  }
 }
 
 ClimateMeasurement getClimateMeasurement() {
@@ -529,9 +498,7 @@ void secTicker()
   // printTime(0);  // Uncomment if you want to see time printed every second
 }
 
-
 void updateNTP() {
-  
   configTime(TZ * 3600, 0, NTP_SERVERS);
 
   delay(500);
@@ -542,8 +509,7 @@ void updateNTP() {
 }
 
 
-void printTime(time_t offset)
-{
+void printTime(time_t offset) {
   char buf[30];
   char *dstAbbrev;
   time_t t = dstAdjusted.time(&dstAbbrev)+offset;
@@ -605,5 +571,4 @@ void drawHeaderOverlay(OLEDDisplay *display, OLEDDisplayUiState* state) {
 void setReadyForDHTUpdate() {
   Serial.println("Setting readyForDHTUpdate to true");
   readyForDHTUpdate = true;
->>>>>>> origin/display
 }
