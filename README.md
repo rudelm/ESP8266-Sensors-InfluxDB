@@ -36,13 +36,17 @@ This is similar to the captive portals you might know from public hotpots. Now e
 
 ![DHT22-Sensor Configuration](./images/DHT22-Sensor-Configuration.png "DHT22-Sensor Configuration")
 
-After you've entered all necessary information, the settings will be persisted and it will connect to the new Wifi as client:
+After you've entered all necessary information, the settings will be persisted.
 
-![DHT22-Sensor Configuration saved](./images/DHT22-Sensor-Saved.png "DHT22-Sensor Configuration saved")
+You can now verify your connection if you'll click on "check how it went". You yhould be able to see the configuration page but on the bottom it should show you a hint that it is connected to the Wifi and the IP of the ESP.
 
 ## Troubleshooting
 If you don't complete the configuration in less than 5 minutes, the ESP will disconnect you. You need to reconnect to the Wifi for another configuration run.
 
-Previous versions of the code used a define to wipe the configuration data. This was quite annoying since you've always need to have access to a computer and access to the sourcecode to make the configuration change. Using https://github.com/kentaylor/WiFiManager I'm able to reset the configuration once you'll hit the reset button on the ESP twice in a given amount of time (currently 10s). 
+Previous versions of the code used a define to wipe the configuration data. This was quite annoying since you've always need to have access to a computer and access to the sourcecode to make the configuration change. Using https://github.com/kentaylor/WiFiManager I'm able to reset the configuration once you'll hit the reset button on the ESP twice in a given amount of time (currently 10s). However, the define to wipe the configuration data is still present and can be helpful during debugging of the code. 
 
-This will bring back the Wifi AP and you're able to reconfigure.
+If you'll double press within 10s the ESPs reset button, you'll bring back the Wifi AP you'll need for reconfiguration. If you just press reset once, just the ESP restarts.
+
+You can also check the configuration page to see your settings. If you've ever configured the ESP before, you'll see the entered values again. Only the SSID and Wifi password are empty.
+
+If you want to change a setting, you'll need to select the SSID and need to enter the password again. If you just want to have a look, hit the back button and exit the portal.

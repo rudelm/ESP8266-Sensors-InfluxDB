@@ -67,12 +67,6 @@ bool shouldSaveConfig = false;
 bool readConfigFile();
 bool writeConfigFile();
 
-// callback notifying us of the need to save config
-void saveConfigCallback () {
-  Serial.println("Should save config");
-  shouldSaveConfig = true;
-}
-
 void setup() {
   Serial.begin(115200);
   Serial.println();
@@ -84,181 +78,172 @@ void setup() {
     initialConfig = true;
   }
 
+  if (WiFi.SSID()==""){
+    Serial.println("We haven't got any access point credentials, so get them now");   
+    initialConfig = true;
+  }
+  else {
+    WiFi.mode(WIFI_STA); // Force to station mode because if device was switched off while in access point mode it will start up next time in access point mode.
+    unsigned long startedAt = millis();
+    Serial.print("After waiting ");
+    int connRes = WiFi.waitForConnectResult();
+    float waited = (millis()- startedAt);
+    Serial.print(waited/1000);
+    Serial.print(" secs in setup() connection result is ");
+    Serial.println(connRes);
+  }
+
   #if defined(RESET_DATA)
     // clean FS, for testing
     Serial.println("cleaning FS...");
     SPIFFS.format();
   #endif
 
-  //read configuration from FS json
-  Serial.println("mounting FS...");
-
+  // initialize SPIFFS
   if (SPIFFS.begin()) {
     Serial.println("mounted file system");
+    //read configuration from FS json
+    Serial.println("mounting FS...");
     if (SPIFFS.exists(CONFIG_FILE)) {
       //file exists, reading and loading
       Serial.println("reading config file");
-      File configFile = SPIFFS.open(CONFIG_FILE, "r");
-      if (configFile) {
-        Serial.println("opened config file");
-        size_t size = configFile.size();
-        // Allocate a buffer to store contents of the file.
-        std::unique_ptr<char[]> buf(new char[size]);
-
-        configFile.readBytes(buf.get(), size);
-
-        // see https://arduinojson.org/v6/assistant/
-        // we use a json hash with 6 keys, the JSON_OBJECT_SIZE macro takes the number of keys
-        const size_t capacity = JSON_OBJECT_SIZE(6) + 255;
-        DynamicJsonDocument json(capacity);
-        DeserializationError err = deserializeJson(json, buf.get());
-        if (err) {
-          Serial.print("deserialization of JSON failed with code ");
-          Serial.println(err.c_str());
-        }
-        else {
-          Serial.println("\nparsed json");
-          serializeJson(json, Serial);
-
-          strcpy(influxdb_server, json["influxdb_server"]);
-          strcpy(influxdb_port, json["influxdb_port"]);
-          strcpy(influxdb_db, json["influxdb_db"]);
-          strcpy(influxdb_user, json["influxdb_user"]);
-          strcpy(influxdb_password, json["influxdb_password"]);
-          strcpy(measurement, json["measurement"]);
-          strcpy(node, json["node"]);
-        }
-      }
+      readConfigFile();
     }
+    else {
+      Serial.println("Configuration file did not exist, using defaults");
+    }
+    //end read
   } else {
     Serial.println("failed to mount FS");
   }
-  //end read
-
-  // The extra parameters to be configured (can be either global or just in the setup)
-  // After connecting, parameter.getValue() will get you the configured value
-  // id/name placeholder/prompt default length
-  WiFiManagerParameter custom_influxdb_server("server", "InfluxDB server", influxdb_server, 60);
-  WiFiManagerParameter custom_influxdb_port("port", "InfluxDB server port", influxdb_port, 6);
-  WiFiManagerParameter custom_influxdb_db("db", "InfluxDB database", influxdb_db, 30);
-  WiFiManagerParameter custom_influxdb_user("user", "InfluxDB username", influxdb_user, 30);
-  WiFiManagerParameter custom_influxdb_password("password", "InfluxDB userpassword", influxdb_password, 30);
-  WiFiManagerParameter custom_measurement("measurement", "InfluxDB measurement", measurement, 30);
-  WiFiManagerParameter custom_node("node", "Node name for better identification", node, 30);
-
-  // WiFiManager
-  // Local intialization. Once its business is done, there is no need to keep it around
-  WiFiManager wifiManager;
-
-  // set config save notify callback
-  wifiManager.setSaveConfigCallback(saveConfigCallback);
-
-  // set static ip
-  //wifiManager.setSTAStaticIPConfig(IPAddress(10,0,1,99), IPAddress(10,0,1,1), IPAddress(255,255,255,0));
-
-  // add all your parameters here
-  wifiManager.addParameter(&custom_influxdb_server);
-  wifiManager.addParameter(&custom_influxdb_port);
-  wifiManager.addParameter(&custom_influxdb_db);
-  wifiManager.addParameter(&custom_influxdb_user);
-  wifiManager.addParameter(&custom_influxdb_password);
-  wifiManager.addParameter(&custom_measurement);
-  wifiManager.addParameter(&custom_node);
-
-  #if defined(RESET_DATA)
-    // reset settings - for testing
-    wifiManager.resetSettings();
-  #endif
-
-  // set minimu quality of signal so it ignores AP's under that quality
-  // defaults to 8%
-  //wifiManager.setMinimumSignalQuality();
-
-  // sets timeout until configuration portal gets turned off
-  // useful to make it all retry or go to sleep
-  // in seconds
-  wifiManager.setConfigPortalTimeout(300);
-
-  // fetches ssid and pass and tries to connect
-  // if it does not connect it starts an access point with the specified name
-  // here  "DHT22-Sensor"
-  // and goes into a blocking loop awaiting configuration
-  if (!wifiManager.startConfigPortal("DHT22-Sensor", "configureMe")) {
-    Serial.println("failed to connect and hit timeout");
-    delay(3000);
-    // reset and try again, or maybe put it to deep sleep
-    ESP.reset();
-    delay(5000);
-  }
-
-  // if you get here you have connected to the WiFi
-  Serial.println("connected to the selected WiFi...");
-
-  // read updated parameters
-  strcpy(influxdb_server, custom_influxdb_server.getValue());
-  strcpy(influxdb_port, custom_influxdb_port.getValue());
-  strcpy(influxdb_db, custom_influxdb_db.getValue());
-  strcpy(influxdb_user, custom_influxdb_user.getValue());
-  strcpy(influxdb_password, custom_influxdb_password.getValue());
-  strcpy(measurement, custom_measurement.getValue());
-  strcpy(node, custom_node.getValue());
-
-  // save the custom parameters to FS
-  if (shouldSaveConfig) {
-    Serial.println("saving config");
-
-    const size_t capacity = JSON_OBJECT_SIZE(6) + 255;
-    DynamicJsonDocument json(capacity);
-
-    Serial.println("\nparsed json");
-    json["influxdb_server"] = influxdb_server;
-    json["influxdb_port"] = influxdb_port;
-    json["influxdb_db"] = influxdb_db;
-    json["influxdb_user"] = influxdb_user;
-    json["influxdb_password"] = influxdb_password;
-    json["measurement"] = measurement;
-    json["node"] = node;
-
-    File configFile = SPIFFS.open(CONFIG_FILE, "w");
-    if (!configFile) {
-      Serial.println("failed to open config file for writing");
-    }
-
-    serializeJson(json, Serial);
-    serializeJson(json, configFile);
-    configFile.close();
-    //end save
-  }
-
-  Serial.println("local ip");
-  Serial.println(WiFi.localIP());
 }
 //end setup
 
 void loop() {
-  float h = dht.readHumidity();
-  float t = dht.readTemperature();
+  // Call the double reset detector loop method every so often,
+  // so that it can recognise when the timeout expires.
+  // You can also call drd.stop() when you wish to no longer
+  // consider the next reset as a double reset.
+  drd.loop();
 
-  influxdb.setHost(influxdb_server);
-  influxdb.setPort(atoi(influxdb_port));
-  influxdb.opendb(String(influxdb_db), String(influxdb_user), String(influxdb_password));
-  
-  if (isnan(h) || isnan(t)) {
-    Serial.println("Failed to read from DHT sensor!");
-    return;
+  if (initialConfig) {
+    // initialize the WifiManager portal
+    // The extra parameters to be configured (can be either global or just in the setup)
+    // After connecting, parameter.getValue() will get you the configured value
+    // id/name placeholder/prompt default length
+    WiFiManagerParameter custom_influxdb_server("server", "InfluxDB server", influxdb_server, 60);
+    WiFiManagerParameter custom_influxdb_port("port", "InfluxDB server port", influxdb_port, 6);
+    WiFiManagerParameter custom_influxdb_db("db", "InfluxDB database", influxdb_db, 30);
+    WiFiManagerParameter custom_influxdb_user("user", "InfluxDB username", influxdb_user, 30);
+    WiFiManagerParameter custom_influxdb_password("password", "InfluxDB userpassword", influxdb_password, 30);
+    WiFiManagerParameter custom_measurement("measurement", "InfluxDB measurement", measurement, 30);
+    WiFiManagerParameter custom_node("node", "Node name for better identification", node, 30);
+
+    // WiFiManager
+    // Local intialization. Once its business is done, there is no need to keep it around
+    WiFiManager wifiManager;
+
+    // set config save notify callback
+    wifiManager.setSaveConfigCallback(saveConfigCallback);
+
+    // set static ip
+    //wifiManager.setSTAStaticIPConfig(IPAddress(10,0,1,99), IPAddress(10,0,1,1), IPAddress(255,255,255,0));
+
+    // add all your parameters here
+    wifiManager.addParameter(&custom_influxdb_server);
+    wifiManager.addParameter(&custom_influxdb_port);
+    wifiManager.addParameter(&custom_influxdb_db);
+    wifiManager.addParameter(&custom_influxdb_user);
+    wifiManager.addParameter(&custom_influxdb_password);
+    wifiManager.addParameter(&custom_measurement);
+    wifiManager.addParameter(&custom_node);
+
+    #if defined(RESET_DATA)
+      // reset settings - for testing
+      wifiManager.resetSettings();
+    #endif
+
+    // set minimu quality of signal so it ignores AP's under that quality
+    // defaults to 8%
+    //wifiManager.setMinimumSignalQuality();
+
+    // sets timeout until configuration portal gets turned off
+    // useful to make it all retry or go to sleep
+    // in seconds
+    wifiManager.setConfigPortalTimeout(300);
+
+    // fetches stored ssid and pass and tries to connect
+    // if it does not connect it starts an access point with the specified name
+    // here  "DHT22-Sensor"
+    // and goes into a blocking loop awaiting configuration
+    if (!wifiManager.startConfigPortal("DHT22-Sensor", "configureMe")) {
+      Serial.println("failed to connect and hit timeout");
+      delay(3000);
+      // reset and try again, or maybe put it to deep sleep
+      ESP.reset();
+      delay(5000);
+    }
+    else {
+      // if you get here you have connected to the WiFi
+      Serial.println("connected to the selected WiFi...");
+    }
+
+    // read updated parameters
+    strcpy(influxdb_server, custom_influxdb_server.getValue());
+    strcpy(influxdb_port, custom_influxdb_port.getValue());
+    strcpy(influxdb_db, custom_influxdb_db.getValue());
+    strcpy(influxdb_user, custom_influxdb_user.getValue());
+    strcpy(influxdb_password, custom_influxdb_password.getValue());
+    strcpy(measurement, custom_measurement.getValue());
+    strcpy(node, custom_node.getValue());
+
+    // save the custom parameters to FS
+    if (shouldSaveConfig) {
+      writeConfigFile();
+    }
+
+    if (WiFi.status()!=WL_CONNECTED) {
+      Serial.println("failed to connect, finishing setup anyway");
+    } 
+    else {
+      Serial.print("local ip: ");
+      Serial.println(WiFi.localIP());
+    }
+
+    // reset config mode for next loop iteration
+    initialConfig = false;
   }
-  float hic = dht.computeHeatIndex(t, h, false);
-  
-  String data = String(measurement) + ",node=" + String(node) + " t=" + String(t) + ",h=" + String(h) + ",hic=" + String(hic);
+  else {
+    float h = dht.readHumidity();
+    float t = dht.readTemperature();
 
-  Serial.println("Writing data to host " + String(influxdb_server) + ":" +
-                 String(influxdb_port) + "'s database=" + String(influxdb_db));
-  Serial.println(data);
-  influxdb.write(data);
-  Serial.println(influxdb.response() == DB_SUCCESS ? "HTTP write success"
-                 : "Writing failed");
+    influxdb.setHost(influxdb_server);
+    influxdb.setPort(atoi(influxdb_port));
+    influxdb.opendb(String(influxdb_db), String(influxdb_user), String(influxdb_password));
+    
+    if (isnan(h) || isnan(t)) {
+      Serial.println("Failed to read from DHT sensor!");
+      return;
+    }
+    float hic = dht.computeHeatIndex(t, h, false);
+    
+    String data = String(measurement) + ",node=" + String(node) + " t=" + String(t) + ",h=" + String(h) + ",hic=" + String(hic);
 
-  delay(DHT_READ_INTERVAL);
+    Serial.println("Writing data to host " + String(influxdb_server) + ":" +
+                  String(influxdb_port) + "'s database=" + String(influxdb_db));
+    Serial.println(data);
+    influxdb.write(data);
+    Serial.println(influxdb.response() == DB_SUCCESS ? "HTTP write success"
+                  : "Writing failed");
+
+    delay(DHT_READ_INTERVAL);
+  }
+}
+
+// callback notifying us of the need to save config
+void saveConfigCallback () {
+  Serial.println("Should save config");
+  shouldSaveConfig = true;
 }
 
 bool readConfigFile() {
@@ -268,48 +253,62 @@ bool readConfigFile() {
   if (!f) {
     Serial.println("Configuration file not found");
     return false;
-  } else {
-    // we could open the file
-    size_t size = f.size();
-    // Allocate a buffer to store contents of the file.
-    std::unique_ptr<char[]> buf(new char[size]);
+  } 
+  else {
+    File configFile = SPIFFS.open(CONFIG_FILE, "r");
+    if (configFile) {
+      Serial.println("opened config file");
+      size_t size = configFile.size();
+      // Allocate a buffer to store contents of the file.
+      std::unique_ptr<char[]> buf(new char[size]);
 
-    // Read and store file contents in buf
-    f.readBytes(buf.get(), size);
-    // Closing file
-    f.close();
-    // Using dynamic JSON buffer which is not the recommended memory model, but anyway
-    // See https://github.com/bblanchon/ArduinoJson/wiki/Memory%20model
-    DynamicJsonBuffer jsonBuffer;
-    // Parse JSON string
-    JsonObject& json = jsonBuffer.parseObject(buf.get());
-    // Test if parsing succeeds.
-    if (!json.success()) {
-      Serial.println("JSON parseObject() failed");
+      configFile.readBytes(buf.get(), size);
+      configFile.close();
+
+      // see https://arduinojson.org/v6/assistant/
+      // we use a json hash with 6 keys, the JSON_OBJECT_SIZE macro takes the number of keys
+      const size_t capacity = JSON_OBJECT_SIZE(6) + 255;
+      DynamicJsonDocument json(capacity);
+      DeserializationError err = deserializeJson(json, buf.get());
+      if (err) {
+        Serial.print("deserialization of JSON failed with code ");
+        Serial.println(err.c_str());
+        return false;
+      }
+      else {
+        Serial.println("\nparsed json");
+        serializeJsonPretty(json, Serial);
+
+        if (json.containsKey("influxdb_server")) {
+          strcpy(influxdb_server, json["influxdb_server"]);
+        }
+        if (json.containsKey("influxdb_port")) {
+          strcpy(influxdb_port, json["influxdb_port"]);
+        }
+        if (json.containsKey("influxdb_db")) {
+          strcpy(influxdb_db, json["influxdb_db"]);
+        }
+        if (json.containsKey("influxdb_user")) {
+          strcpy(influxdb_user, json["influxdb_user"]);
+        }
+        if (json.containsKey("influxdb_password")) {
+          strcpy(influxdb_password, json["influxdb_password"]);
+        }
+        if (json.containsKey("measurement")) {
+          strcpy(measurement, json["measurement"]);
+        }
+        if (json.containsKey("node")) {
+          strcpy(node, json["node"]);
+        }
+        Serial.println("\nConfig file was successfully parsed");
+        return true;
+      }
+    }
+    else {
+      Serial.println("\nCould not open config file for reading");
       return false;
     }
-    json.printTo(Serial);
-
-    // Parse all config file parameters, override 
-    // local config variables with parsed values
-    if (json.containsKey("thingspeakApiKey")) {
-      strcpy(thingspeakApiKey, json["thingspeakApiKey"]);      
-    }
-    
-    if (json.containsKey("sensorDht22")) {
-      sensorDht22 = json["sensorDht22"];
-    }
-
-    if (json.containsKey("pinSda")) {
-      pinSda = json["pinSda"];
-    }
-    
-    if (json.containsKey("pinScl")) {
-      pinScl = json["pinScl"];
-    }
   }
-  Serial.println("\nConfig file was successfully parsed");
-  return true;
 }
 
 bool writeConfigFile() {
@@ -328,11 +327,11 @@ bool writeConfigFile() {
 
   File configFile = SPIFFS.open(CONFIG_FILE, "w");
   if (!configFile) {
-    Serial.println("failed to open config file for writing");
+    Serial.println("Could not open config file for writing");
     return false;
   }
 
-  serializeJson(json, Serial);
+  serializeJsonPretty(json, Serial);
   serializeJson(json, configFile);
   configFile.close();
 
