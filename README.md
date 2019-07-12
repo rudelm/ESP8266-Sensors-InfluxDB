@@ -50,3 +50,5 @@ If you'll double press within 10s the ESPs reset button, you'll bring back the W
 You can also check the configuration page to see your settings. If you've ever configured the ESP before, you'll see the entered values again. Only the SSID and Wifi password are empty.
 
 If you want to change a setting, you'll need to select the SSID and need to enter the password again. If you just want to have a look, hit the back button and exit the portal.
+
+If you've entered the config mode by chance and don't want to change settings, you can also wait 5min for the config mode to stop due to inactivity timeout.
