@@ -6,9 +6,11 @@ This is a collection of ESP8266 and DHT22 sketches I'm using in my home.
 - https://github.com/adafruit/DHT-sensor-library
 - https://github.com/adafruit/Adafruit_Sensor
 - https://github.com/rudelm/ESP_influxdb/tree/fix-constructor - I needed an empty default constructor for this project
-- https://github.com/tzapu/WiFiManager
+- ~~https://github.com/tzapu/WiFiManager~~ - replaced with https://github.com/kentaylor/WiFiManager Replace the existing WifiManager with this code, or rename the previous code accordingly
+- https://github.com/datacute/DoubleResetDetector
 - https://github.com/bblanchon/ArduinoJson
 - https://github.com/adafruit/Adafruit_SPIFlash
+- https://github.com/esp8266/arduino-esp8266fs-plugin/releases 
 
 If you're using Mac OS High Sierra, you'll need [working](https://www.reddit.com/r/arduino/comments/7cq68i/any_new_drivers_for_ch340g_on_mac_os_high_sierra/) USB Serial drivers for the CH340G chip.
 
@@ -34,12 +36,19 @@ This is similar to the captive portals you might know from public hotpots. Now e
 
 ![DHT22-Sensor Configuration](./images/DHT22-Sensor-Configuration.png "DHT22-Sensor Configuration")
 
-After you've entered all necessary information, the settings will be persisted and it will connect to the new Wifi as client:
+After you've entered all necessary information, the settings will be persisted.
 
-![DHT22-Sensor Configuration saved](./images/DHT22-Sensor-Saved.png "DHT22-Sensor Configuration saved")
+You can now verify your connection if you'll click on "check how it went". You yhould be able to see the configuration page but on the bottom it should show you a hint that it is connected to the Wifi and the IP of the ESP.
 
 ## Troubleshooting
 If you don't complete the configuration in less than 5 minutes, the ESP will disconnect you. You need to reconnect to the Wifi for another configuration run.
 
-If you've ever used the ESP8266 for anything else, it might happen, that you still have a Wifi Configuration stored. In this case, comment out the `#define RESET_DATA` definition to clear the memory. After upload comment this define back in and flash again. The data should now be wiped.
+Previous versions of the code used a define to wipe the configuration data. This was quite annoying since you've always need to have access to a computer and access to the sourcecode to make the configuration change. Using https://github.com/kentaylor/WiFiManager I'm able to reset the configuration once you'll hit the reset button on the ESP twice in a given amount of time (currently 10s). However, the define to wipe the configuration data is still present and can be helpful during debugging of the code. 
 
+If you'll double press within 10s the ESPs reset button, you'll bring back the Wifi AP you'll need for reconfiguration. If you just press reset once, just the ESP restarts.
+
+You can also check the configuration page to see your settings. If you've ever configured the ESP before, you'll see the entered values again. Only the SSID and Wifi password are empty.
+
+If you want to change a setting, you'll need to select the SSID and need to enter the password again. If you just want to have a look, hit the back button and exit the portal.
+
+If you've entered the config mode by chance and don't want to change settings, you can also wait 5min for the config mode to stop due to inactivity timeout.

@@ -3,8 +3,10 @@
         {
             "name": "Mac",
             "includePath": [
-                "/Users/rudelm/Library/Arduino15/packages/esp8266/hardware/esp8266/2.4.1/cores/esp8266",
-                "${workspaceFolder}/**"
+                "~/Library/Arduino15/packages/esp8266/hardware/esp8266/2.5.2/cores/esp8266",
+                "~/Library/Arduino15/packages/esp8266/hardware/esp8266/2.5.2/libraries",
+                "${workspaceFolder}/**",
+                "~/Documents/Arduino/libraries"
             ],
             "defines": [],
             "macFrameworkPath": [
@@ -18,45 +20,15 @@
             "browse": {
                 "limitSymbolsToIncludedHeaders": false,
                 "path": [
-                    "/Users/rudelm/Library/Arduino15/packages/esp8266/hardware/esp8266/2.4.1/cores/esp8266"
+                    "~/Library/Arduino15/packages/esp8266/hardware/esp8266/2.5.2/cores/esp8266",
+                    "~/Library/Arduino15/packages/esp8266/hardware/esp8266/2.5.2/libraries/ESP8266WiFi",
+                    "~/Library/Arduino15/packages/esp8266/hardware/esp8266/2.5.2/libraries/ESP8266WebServer",
+                    "~/Library/Arduino15/packages/esp8266/hardware/esp8266/2.5.2/libraries/DNSServer",
+                    "~/Documents/Arduino/libraries",
+                    "~/Documents/Arduino/libraries/DoubleResetDetector"
                 ]
-            }
-        },
-        {
-            "name": "Arduino",
-            "includePath": [
-                "${workspaceRoot}",
-                "/Applications/Arduino.app/Contents/Java/hardware/arduino/avr/cores/arduino/",
-                "/Applications/Arduino.app/Contents/Java/hardware/arduino/avr/libraries/EEPROM/",
-                "/Applications/Arduino.app/Contents/Java/hardware/arduino/avr/libraries/SPI/",
-                "/Applications/Arduino.app/Contents/Java/hardware/arduino/avr/libraries/SoftwareSerial/",
-                "/Applications/Arduino.app/Contents/Java/hardware/arduino/avr/libraries/Wire/",
-                "/Applications/Arduino.app/Contents/Java/hardware/tools/avr/avr/include/",
-                "/Applications/Arduino.app/Contents/Java/hardware/tools/avr/avr/include/avr/",
-                "/Applications/Arduino.app/Contents/Java/hardware/tools/avr/avr/include/compat/",
-                "/Applications/Arduino.app/Contents/Java/hardware/tools/avr/avr/include/util/",
-                "/Applications/Arduino.app/Contents/Java/hardware/tools/avr/lib/gcc/avr/4.*.*/include/",
-                "/Applications/Arduino.app/Contents/Java/hardware/tools/avr/lib/gcc/avr/4.*.*/include-fixed/",
-                "/Users/rudelm/Documents/Arduino/libraries/Adafruit_ESP8266"
-            ],
-            "browse": {
-                "limitSymbolsToIncludedHeaders": true,
-                "databaseFilename": "",
-                "path": [
-                    "/Applications/Arduino.app/Contents/Java/hardware/arduino/avr/cores/arduino/",
-                    "/Applications/Arduino.app/Contents/Java/hardware/arduino/avr/libraries/EEPROM/",
-                    "/Applications/Arduino.app/Contents/Java/hardware/arduino/avr/libraries/SPI/",
-                    "/Applications/Arduino.app/Contents/Java/hardware/arduino/avr/libraries/SoftwareSerial/",
-                    "/Applications/Arduino.app/Contents/Java/hardware/arduino/avr/libraries/Wire/",
-                    "/Applications/Arduino.app/Contents/Java/hardware/tools/avr/avr/include/",
-                    "/Applications/Arduino.app/Contents/Java/hardware/tools/avr/avr/include/avr/",
-                    "/Applications/Arduino.app/Contents/Java/hardware/tools/avr/avr/include/compat/",
-                    "/Applications/Arduino.app/Contents/Java/hardware/tools/avr/avr/include/util/",
-                    "/Applications/Arduino.app/Contents/Java/hardware/tools/avr/lib/gcc/avr/4.*.*/include/",
-                    "/Applications/Arduino.app/Contents/Java/hardware/tools/avr/lib/gcc/avr/4.*.*/include-fixed/",
-                    "/Users/rudelm/Documents/Arduino/libraries/Adafruit_ESP8266"
-                ]
-            }
+            },
+            "forcedInclude": []
         }
     ],
     "version": 4
