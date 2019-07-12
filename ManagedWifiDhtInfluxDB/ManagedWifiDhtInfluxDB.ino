@@ -32,7 +32,7 @@ This example, contributed by DataCute needs the Double Reset Detector library fr
 #include <sys/time.h>             // struct timeval
 #include <coredecls.h>            // settimeofday_cb()
 #include <simpleDSTadjust.h>      // DST settings
-#include <Ticker.h>               //for checking when its time to update ntp again
+#include <Ticker.h>               // for checking when its time to update ntp again
 
 #include "SSD1306Wire.h"          // OLED Display drivers for SSD1306 displays
 #include "OLEDDisplayUi.h"
