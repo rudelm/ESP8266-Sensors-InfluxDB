@@ -81,8 +81,7 @@ void setup() {
   if (WiFi.SSID()==""){
     Serial.println("We haven't got any access point credentials, so get them now");   
     initialConfig = true;
-  }
-  else {
+  } else {
     WiFi.mode(WIFI_STA); // Force to station mode because if device was switched off while in access point mode it will start up next time in access point mode.
     unsigned long startedAt = millis();
     Serial.print("After waiting ");
@@ -108,8 +107,7 @@ void setup() {
       //file exists, reading and loading
       Serial.println("reading config file");
       readConfigFile();
-    }
-    else {
+    } else {
       Serial.println("Configuration file did not exist, using defaults");
     }
     //end read
@@ -182,8 +180,7 @@ void loop() {
       // reset and try again, or maybe put it to deep sleep
       ESP.reset();
       delay(5000);
-    }
-    else {
+    } else {
       // if you get here you have connected to the WiFi
       Serial.println("connected to the selected WiFi...");
     }
@@ -204,16 +201,14 @@ void loop() {
 
     if (WiFi.status()!=WL_CONNECTED) {
       Serial.println("failed to connect, finishing setup anyway");
-    } 
-    else {
+    } else {
       Serial.print("local ip: ");
       Serial.println(WiFi.localIP());
     }
 
     // reset config mode for next loop iteration
     initialConfig = false;
-  }
-  else {
+  } else {
     float h = dht.readHumidity();
     float t = dht.readTemperature();
 
@@ -253,8 +248,7 @@ bool readConfigFile() {
   if (!f) {
     Serial.println("Configuration file not found");
     return false;
-  } 
-  else {
+  } else {
     File configFile = SPIFFS.open(CONFIG_FILE, "r");
     if (configFile) {
       Serial.println("opened config file");
@@ -274,8 +268,7 @@ bool readConfigFile() {
         Serial.print("deserialization of JSON failed with code ");
         Serial.println(err.c_str());
         return false;
-      }
-      else {
+      } else {
         Serial.println("\nparsed json");
         serializeJsonPretty(json, Serial);
 
@@ -303,8 +296,7 @@ bool readConfigFile() {
         Serial.println("\nConfig file was successfully parsed");
         return true;
       }
-    }
-    else {
+    } else {
       Serial.println("\nCould not open config file for reading");
       return false;
     }
