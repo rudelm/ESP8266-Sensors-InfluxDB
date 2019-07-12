@@ -27,6 +27,20 @@ This example, contributed by DataCute needs the Double Reset Detector library fr
 #include <DHT_U.h>
 #include <ArduinoJson.h>          // https://github.com/bblanchon/ArduinoJson
 
+// time
+#include <time.h>                 // time() ctime()
+#include <sys/time.h>             // struct timeval
+#include <coredecls.h>            // settimeofday_cb()
+#include <simpleDSTadjust.h>      // DST settings
+#include <Ticker.h>               //for checking when its time to update ntp again
+
+#include "SSD1306Wire.h"          // OLED Display drivers for SSD1306 displays
+#include "OLEDDisplayUi.h"
+#include "Wire.h"
+#include "ManagedWifiDhtInfluxDBImages.h"
+#include "ManagedWifiDhtInfluxDBFonts.h"
+#include "ManagedWifiDhtInfluxDB.h"
+
 #define DHTPIN 12                 // DHT connection on GPIO Pin 12 or D6 of NodeMCU LoLin V3
 #define DHTTYPE DHT22             // DHT 22
 #define DHT_READ_INTERVAL 60000   // Read temp info every 60s
@@ -49,6 +63,65 @@ bool initialConfig = false;
 
 DHT dht(DHTPIN, DHTTYPE);
 Influxdb influxdb;
+
+float humidity = 0.0;
+float temperature = 0.0;
+char FormattedTemperature[10];
+char FormattedHumidity[10];
+
+const boolean IS_METRIC = true;
+
+// Display Settings
+const int I2C_DISPLAY_ADDRESS = 0x3c;
+const int SDA_PIN = D3;
+const int SDC_PIN = D4;
+
+// Initialize the oled display for address 0x3c
+// sda-pin=D3 and sdc-pin=D4
+SSD1306Wire     display(I2C_DISPLAY_ADDRESS, SDA_PIN, SDC_PIN);
+OLEDDisplayUi   ui( &display );
+
+// Adjust according to your language
+const String WDAY_NAMES[] = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
+const String MONTH_NAMES[] = {"JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"};
+
+// Update time from NTP server every 5 hours
+#define NTP_UPDATE_INTERVAL_SEC 5*3600
+#define TZ              1         // (utc+) TZ in hours
+#define NTP_SERVERS "time.nist.gov", "time.windows.com", "de.pool.ntp.org"
+
+//Central European Time (Frankfurt, Paris)
+struct dstRule StartRule = {"CEST", Last, Sun, Mar, 2, 3600};     //Central European Summer Time
+struct dstRule EndRule = {"CET", Last, Sun, Oct, 3, 0};       //Central European Standard Time
+
+// Setup simpleDSTadjust Library rules
+simpleDSTadjust dstAdjusted(StartRule, EndRule);
+char *dstAbbrev;
+
+Ticker ticker1;
+int32_t tick;
+
+// flag changed in the ticker function to start NTP Update
+bool readyForNtpUpdate = false;
+
+// flag changed in the ticker function every 1 minute
+bool readyForDHTUpdate = false;
+
+time_t now;
+
+//declaring prototypes
+void drawDateTime(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y);
+void drawIndoor(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y);
+void drawHeaderOverlay(OLEDDisplay *display, OLEDDisplayUiState* state);
+
+// Add frames
+// this array keeps function pointers to all frames
+// frames are the single views that slide from right to left
+FrameCallback frames[] = { drawDateTime, drawIndoor };
+int numberOfFrames = 2;
+
+OverlayCallback overlays[] = { drawHeaderOverlay };
+int numberOfOverlays = 1;
 
 // define your default values here, if there are different values in config.json, they are overwritten.
 char influxdb_server[60];
@@ -306,6 +379,7 @@ bool readConfigFile() {
 bool writeConfigFile() {
   Serial.println("Saving config file");
 
+<<<<<<< HEAD
   const size_t capacity = JSON_OBJECT_SIZE(6) + 255;
   DynamicJsonDocument json(capacity);
 
@@ -329,4 +403,207 @@ bool writeConfigFile() {
 
   Serial.println("\nConfig file was successfully saved");
   return true;
+=======
+  Serial.println("local ip");
+  Serial.println(WiFi.localIP());
+
+  updateNTP(); // Init the NTP time
+  printTime(0); // print initial time time now.
+
+  tick = NTP_UPDATE_INTERVAL_SEC; // Init the NTP update countdown ticker
+  ticker1.attach(1, secTicker); // Run a 1 second interval Ticker
+  Serial.print("Next NTP Update: ");
+  printTime(tick);
+
+  now = dstAdjusted.time(&dstAbbrev);
+  Serial.println("system time set in setup: ");
+  Serial.println(ctime(&now));
+
+  // wait 2 minutes until DHT is ready to read
+  ticker1.attach(120, setReadyForDHTUpdate);
+
+  // initialize display
+  display.init();
+  display.clear();
+  display.display();
+
+  //display.flipScreenVertically();
+  display.setFont(ArialMT_Plain_10);
+  display.setTextAlignment(TEXT_ALIGN_CENTER);
+  display.setContrast(255);
+
+  ui.setTargetFPS(30);
+  ui.setTimePerFrame(10*1000); // Setup frame display time to 10 sec
+
+  ui.setActiveSymbol(activeSymbole);
+  ui.setInactiveSymbol(inactiveSymbole);
+
+  // You can change this to
+  // TOP, LEFT, BOTTOM, RIGHT
+  ui.setIndicatorPosition(BOTTOM);
+
+  // Defines where the first frame is located in the bar.
+  ui.setIndicatorDirection(LEFT_RIGHT);
+
+  // You can change the transition that is used
+  // SLIDE_LEFT, SLIDE_RIGHT, SLIDE_TOP, SLIDE_DOWN
+  ui.setFrameAnimation(SLIDE_LEFT);
+
+  ui.setFrames(frames, numberOfFrames);
+
+  ui.setOverlays(overlays, numberOfOverlays);
+
+  // Inital UI takes care of initalising the display too.
+  ui.init();
+
+  Serial.println("");
+}
+
+void loop() {
+  if(readyForNtpUpdate)
+   {
+    readyForNtpUpdate = false;
+    printTime(0);
+    updateNTP();
+    Serial.print("\nUpdated time from NTP Server: ");
+    printTime(0);
+    Serial.print("Next NTP Update: ");
+    printTime(tick);
+  }
+
+  if (readyForDHTUpdate && ui.getUiState()->frameState == FIXED)
+  {
+    ClimateMeasurement sensorData = getClimateMeasurement();
+    influxdb.setHost(influxdb_server);
+    influxdb.setPort(atoi(influxdb_port));
+    influxdb.opendb(String(influxdb_db), String(influxdb_user), String(influxdb_password));
+    
+    if (isnan(sensorData.humidity) || isnan(sensorData.temperature)) {
+      Serial.println("Failed to read from DHT sensor!");
+      return;
+    }
+    
+    String data = String(measurement) + ",node=" + String(node) + " t=" + String(sensorData.temperature) + ",h=" + String(sensorData.humidity) + ",hic=" + String(sensorData.heatIndex);
+  
+    Serial.println("Writing data to host " + String(influxdb_server) + ":" +
+                   String(influxdb_port) + "'s database=" + String(influxdb_db));
+    Serial.println(data);
+    influxdb.write(data);
+    Serial.println(influxdb.response() == DB_SUCCESS ? "HTTP write success"
+                   : "Writing failed");
+
+    // Wait again for DHT Sensor to become ready
+    readyForDHTUpdate = false;
+  }
+
+  int remainingTimeBudget = ui.update();
+
+  if (remainingTimeBudget > 0) {
+    // You can do some work here
+    // Don't do stuff if you are below your
+    // time budget.
+    delay(remainingTimeBudget);
+  }
+}
+
+ClimateMeasurement getClimateMeasurement() {
+  float h = dht.readHumidity();
+  float t = dht.readTemperature();
+  float hic = dht.computeHeatIndex(t, h, false);
+  temperature = t;
+  humidity = h;
+
+  return {h, t, 0, hic};
+}
+
+// NTP timer update ticker
+void secTicker()
+{
+  tick--;
+  if(tick<=0)
+   {
+    readyForNtpUpdate = true;
+    tick= NTP_UPDATE_INTERVAL_SEC; // Re-arm
+   }
+
+  // printTime(0);  // Uncomment if you want to see time printed every second
+}
+
+
+void updateNTP() {
+  
+  configTime(TZ * 3600, 0, NTP_SERVERS);
+
+  delay(500);
+  while (!time(nullptr)) {
+    Serial.print("#");
+    delay(1000);
+  }
+}
+
+
+void printTime(time_t offset)
+{
+  char buf[30];
+  char *dstAbbrev;
+  time_t t = dstAdjusted.time(&dstAbbrev)+offset;
+  struct tm *timeinfo = localtime (&t);
+  
+  int hour = (timeinfo->tm_hour+11)%12+1;  // take care of noon and midnight
+  sprintf(buf, "%02d/%02d/%04d %02d:%02d:%02d%s %s\n",timeinfo->tm_mon+1, timeinfo->tm_mday, timeinfo->tm_year+1900, hour, timeinfo->tm_min, timeinfo->tm_sec, timeinfo->tm_hour>=12?"pm":"am", dstAbbrev);
+  Serial.print(buf);
+}
+
+void drawDateTime(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y) {
+  now = dstAdjusted.time(&dstAbbrev);
+  struct tm* timeInfo;
+  timeInfo = localtime(&now);
+  char buff[16];
+
+
+  display->setTextAlignment(TEXT_ALIGN_CENTER);
+  display->setFont(ArialMT_Plain_10);
+  String date = WDAY_NAMES[timeInfo->tm_wday];
+
+  sprintf_P(buff, PSTR("%s, %02d/%02d/%04d"), WDAY_NAMES[timeInfo->tm_wday].c_str(), timeInfo->tm_mday, timeInfo->tm_mon+1, timeInfo->tm_year + 1900);
+  display->drawString(64 + x, 5 + y, String(buff));
+  display->setFont(ArialMT_Plain_24);
+
+  sprintf_P(buff, PSTR("%02d:%02d:%02d"), timeInfo->tm_hour, timeInfo->tm_min, timeInfo->tm_sec);
+  display->drawString(64 + x, 15 + y, String(buff));
+  display->setTextAlignment(TEXT_ALIGN_LEFT);
+}
+
+void drawIndoor(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y) {
+  display->setTextAlignment(TEXT_ALIGN_CENTER);
+  display->setFont(ArialMT_Plain_10);
+  display->drawString(64 + x, 0, "DHT22 Indoor Sensor" );
+  display->setFont(ArialMT_Plain_16);
+  dtostrf(temperature,4, 1, FormattedTemperature);
+  display->drawString(64+x, 12, "Temp: " + String(FormattedTemperature) + (IS_METRIC ? "°C": "°F"));
+  dtostrf(humidity,4, 1, FormattedHumidity);
+  display->drawString(64+x, 30, "Humidity: " + String(FormattedHumidity) + "%");
+}
+
+void drawHeaderOverlay(OLEDDisplay *display, OLEDDisplayUiState* state) {
+  now = dstAdjusted.time(&dstAbbrev);
+  struct tm* timeInfo;
+  timeInfo = localtime(&now);
+  char buff[14];
+  sprintf_P(buff, PSTR("%02d:%02d"), timeInfo->tm_hour, timeInfo->tm_min);
+
+  display->setColor(WHITE);
+  display->setFont(ArialMT_Plain_10);
+  display->setTextAlignment(TEXT_ALIGN_LEFT);
+  display->drawString(0, 54, String(buff));
+  display->setTextAlignment(TEXT_ALIGN_RIGHT);
+  //String temp = String(currentWeather.temp, 1) + (IS_METRIC ? "°C" : "°F");
+  //display->drawString(128, 54, temp);
+  display->drawHorizontalLine(0, 52, 128);
+}
+
+void setReadyForDHTUpdate() {
+  Serial.println("Setting readyForDHTUpdate to true");
+  readyForDHTUpdate = true;
+>>>>>>> origin/display
 }
